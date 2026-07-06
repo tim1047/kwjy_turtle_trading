@@ -11,6 +11,7 @@ from pykrx import stock
 from turtle.config import StockFilterConfig
 from turtle.data.base import with_retry
 from turtle.universe.filters import StockMetrics, passes_stock_filters
+from turtle.universe.krx_etf import etf_ticker_set
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +140,12 @@ def build_stock_universe(
 
     종목 단위 실패는 전체 배치를 막지 않도록 개별적으로 격리한다.
     """
+    try:
+        etf_tickers = etf_ticker_set()
+    except Exception as exc:  # noqa: BLE001 - 조회 실패 시 필터링 없이 진행
+        log.warning("ETF 티커 목록 조회 실패, 교차 제외 없이 진행: %s", exc)
+        etf_tickers = set()
+
     result = []
     plan = [("KOSPI", cfg.kospi_top_n), ("KOSDAQ", cfg.kosdaq_top_n)]
     for market, top_n in plan:
@@ -148,6 +155,9 @@ def build_stock_universe(
             log.warning("%s 시가총액 조회 실패: %s", market, exc)
             continue
         for ticker, row in cap_df.iterrows():
+            if ticker in etf_tickers:
+                log.info("universe OUT %s (ETF, 시총 순위에 혼입)", ticker)
+                continue
             try:
                 m = _build_metrics(
                     ticker, target, lookback, market, float(row["시가총액"]), fetcher

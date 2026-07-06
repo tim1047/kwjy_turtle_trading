@@ -144,6 +144,7 @@ def test_build_stock_universe_filters_and_isolates_ticker_failure(monkeypatch):
         return cap_df if market == "KOSPI" else cap_df.iloc[0:0]
 
     monkeypatch.setattr(krx_stocks, "_top_by_cap", fake_top_by_cap)
+    monkeypatch.setattr(krx_stocks, "etf_ticker_set", lambda: set())
     monkeypatch.setattr(
         krx_stocks.stock, "get_market_ticker_name", lambda t: f"name-{t}"
     )
@@ -161,6 +162,35 @@ def test_build_stock_universe_filters_and_isolates_ticker_failure(monkeypatch):
     assert result == ["AAAAAA"]
 
 
+def test_build_stock_universe_excludes_etf_tickers_mixed_into_cap_ranking(monkeypatch):
+    """네이버 KOSPI 시총 순위에는 ETF도 섞여 나온다 (예: 069500 KODEX 200).
+    get_market_ticker_name이 ETF 티커를 지원하지 않아 크래시하므로, ETF는
+    시총 순위에서 조회조차 하지 않고 사전에 제외해야 한다."""
+    import turtle.universe.krx_stocks as krx_stocks
+
+    cap_df = pd.DataFrame(
+        {"시가총액": [400_000_000_000_000.0, 400_000_000_000_000.0]},
+        index=["069500", "AAAAAA"],
+    )
+
+    def fake_top_by_cap(market, top_n):
+        return cap_df if market == "KOSPI" else cap_df.iloc[0:0]
+
+    monkeypatch.setattr(krx_stocks, "_top_by_cap", fake_top_by_cap)
+    monkeypatch.setattr(krx_stocks, "etf_ticker_set", lambda: {"069500"})
+    monkeypatch.setattr(
+        krx_stocks.stock, "get_market_ticker_name", lambda t: f"name-{t}"
+    )
+
+    fetcher = _FakeFetcher({"AAAAAA": _ohlcv_df(400, close=70_000, volume=1_000_000)})
+    cfg = _cfg()
+
+    result = krx_stocks.build_stock_universe("20260703", cfg, fetcher, "20250601")
+
+    assert result == ["AAAAAA"]
+    assert ("069500", "20250601", "20260703") not in fetcher.calls
+
+
 def test_build_stock_universe_isolates_market_level_failure(monkeypatch):
     import turtle.universe.krx_stocks as krx_stocks
 
@@ -170,6 +200,7 @@ def test_build_stock_universe_isolates_market_level_failure(monkeypatch):
         return pd.DataFrame({"시가총액": [400_000_000_000_000.0]}, index=["DDDDDD"])
 
     monkeypatch.setattr(krx_stocks, "_top_by_cap", fake_top_by_cap)
+    monkeypatch.setattr(krx_stocks, "etf_ticker_set", lambda: set())
     monkeypatch.setattr(
         krx_stocks.stock, "get_market_ticker_name", lambda t: f"name-{t}"
     )

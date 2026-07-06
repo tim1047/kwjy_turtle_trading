@@ -45,6 +45,13 @@ def _fetch_etf_items() -> list:
     return data.get("result", {}).get("etfItemList", [])
 
 
+def etf_ticker_set() -> set:
+    """전체 ETF 티커 집합 (KOSPI 시총 순위에도 ETF가 섞여 나오므로, 주식
+    유니버스 구성 시 이 집합으로 교차 제외한다). 실패 시 예외를 전파한다.
+    """
+    return {item["itemcode"] for item in _fetch_etf_items()}
+
+
 def _etf_ticker_list(top_n: int) -> list:
     """시가총액(marketSum) 상위 top_n ETF 티커 목록을 조회한다 (I/O).
 
