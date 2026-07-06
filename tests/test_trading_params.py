@@ -44,3 +44,20 @@ def test_floor_not_round():
     # risk budget 1,000,000 ; N=3 -> 333333.33 -> floor 333333
     p = compute_trading_params(entry_trigger=10, n=3, account=_acct())
     assert p.unit_size == math.floor(1_000_000 / 3)
+
+
+def test_floor_vs_round_discriminator():
+    # Discriminates floor from round: risk_budget=1_000_000; N=1500
+    # -> 1_000_000 / 1500 = 666.666...
+    # floor(666.666) = 666, round(666.666) = 667
+    # This test FAILS if someone swaps math.floor() for round()
+    risk_budget = 1_000_000
+    n = 1500
+    p = compute_trading_params(entry_trigger=10_000, n=n, account=_acct())
+    assert p.unit_size == math.floor(risk_budget / n), \
+        f"unit_size should be {math.floor(risk_budget / n)}, got {p.unit_size}"
+    assert p.unit_size != round(risk_budget / n), \
+        f"unit_size must NOT be round(risk_budget/n)={round(risk_budget / n)}; got {p.unit_size}"
+    # Explicitly verify the values we're testing with
+    assert p.unit_size == 666, f"Expected 666, got {p.unit_size}"
+    assert round(risk_budget / n) == 667, "round(1_000_000/1500) should be 667"
