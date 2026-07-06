@@ -40,6 +40,7 @@ def screen_ticker(ticker: str, name: str, market: str, df, cfg: Config) -> Scree
         high_55=ind.high_55,
         low_20=ind.low_20,
         approaching_pct=cfg.approaching_pct,
+        sma_200=ind.sma_200,
     )
     params = compute_trading_params(ind.high_55, ind.atr_20, cfg.account)
     gap_pct = (

@@ -16,6 +16,7 @@ class IndicatorResult:
     adx_14: float
     avg_volume_20: float
     avg_turnover_20: float
+    sma_200: float
 
 
 def true_range(df: pd.DataFrame) -> pd.Series:
@@ -79,4 +80,5 @@ def compute_indicators(df: pd.DataFrame) -> IndicatorResult:
         adx_14=float(adx(df, 14).iloc[-1]),
         avg_volume_20=float(df["volume"].iloc[-20:].mean()),
         avg_turnover_20=float(turnover.iloc[-20:].mean()),
+        sma_200=float(df["close"].rolling(200).mean().iloc[-1]),
     )
