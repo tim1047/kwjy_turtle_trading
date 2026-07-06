@@ -2,6 +2,13 @@ import argparse
 import logging
 from datetime import datetime
 
+# pykrx authenticates against data.krx.co.kr (KRX_ID/KRX_PW env vars) at
+# import time (see pykrx.website.comm.webio module-level session init), so
+# .env must be loaded before any project import that pulls in pykrx.
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from turtle.config import load_config
 from turtle.data.krx import KrxFetcher
 from turtle.pipeline import run
