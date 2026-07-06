@@ -13,6 +13,7 @@ filters_stocks:
   min_market_cap: 300000000000
   kospi_top_n: 200
   kosdaq_top_n: 100
+  etf_top_n: 100
   exclude_preferred: true
   exclude_spac: true
   exclude_recent_split: true

@@ -23,6 +23,7 @@ class StockFilterConfig:
     min_market_cap: float
     kospi_top_n: int
     kosdaq_top_n: int
+    etf_top_n: int
     exclude_preferred: bool
     exclude_spac: bool
     exclude_recent_split: bool

@@ -13,6 +13,7 @@ def _cfg():
         min_market_cap=300_000_000_000,
         kospi_top_n=200,
         kosdaq_top_n=100,
+        etf_top_n=100,
         exclude_preferred=True,
         exclude_spac=True,
         exclude_recent_split=True,
@@ -190,7 +191,7 @@ def test_build_etf_universe_applies_liquidity_filters_and_isolates_failures(
     import turtle.universe.krx_etf as krx_etf
 
     monkeypatch.setattr(
-        krx_etf, "_etf_ticker_list", lambda: ["069500", "PENNY01", "BROKEN1"]
+        krx_etf, "_etf_ticker_list", lambda top_n: ["069500", "PENNY01", "BROKEN1"]
     )
 
     frames = {
@@ -209,7 +210,7 @@ def test_build_etf_universe_applies_liquidity_filters_and_isolates_failures(
 def test_build_etf_universe_ticker_list_failure_returns_empty(monkeypatch):
     import turtle.universe.krx_etf as krx_etf
 
-    def raise_error():
+    def raise_error(top_n):
         raise ConnectionError("naver etf list unreachable")
 
     monkeypatch.setattr(krx_etf, "_etf_ticker_list", raise_error)

@@ -9,7 +9,7 @@ from turtle.signals import BREAKOUT_TODAY, NEUTRAL
 def _cfg():
     return Config(
         account=AccountConfig(100_000_000, 0.01, 4, 6, 12),
-        filters_stocks=StockFilterConfig(300, 1e10, 1e5, 1000, 3e11, 200, 100,
+        filters_stocks=StockFilterConfig(300, 1e10, 1e5, 1000, 3e11, 200, 100, 100,
                                          True, True, True),
         approaching_pct=0.98,
         assets={"stocks": True, "etf": True, "crypto": False},

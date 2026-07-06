@@ -17,6 +17,7 @@ def test_load_config_reads_yaml_and_env(tmp_path, monkeypatch):
         "  min_market_cap: 300000000000\n"
         "  kospi_top_n: 200\n"
         "  kosdaq_top_n: 100\n"
+        "  etf_top_n: 100\n"
         "  exclude_preferred: true\n"
         "  exclude_spac: true\n"
         "  exclude_recent_split: true\n"

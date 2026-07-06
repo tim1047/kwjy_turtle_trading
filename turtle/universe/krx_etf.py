@@ -31,8 +31,8 @@ log = logging.getLogger(__name__)
 _ETF_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.naver"
 
 
-def _etf_ticker_list() -> list:
-    """ETF 티커 목록을 조회한다 (I/O). 실패 시 예외를 그대로 전파한다."""
+def _fetch_etf_items() -> list:
+    """네이버 ETF 목록 원본(itemcode/itemname/marketSum 등)을 조회한다 (I/O)."""
 
     def _call():
         resp = requests.get(
@@ -42,19 +42,28 @@ def _etf_ticker_list() -> list:
         return resp.json()
 
     data = with_retry(_call, retries=3, base_delay=1.0)
-    items = data.get("result", {}).get("etfItemList", [])
-    return [item["itemcode"] for item in items]
+    return data.get("result", {}).get("etfItemList", [])
+
+
+def _etf_ticker_list(top_n: int) -> list:
+    """시가총액(marketSum) 상위 top_n ETF 티커 목록을 조회한다 (I/O).
+
+    etfItemList.naver 응답의 marketSum(억원)으로 내림차순 정렬 후 상위 top_n만
+    취한다. 실패 시 예외를 그대로 전파한다.
+    """
+    items = sorted(_fetch_etf_items(), key=lambda item: item.get("marketSum", 0), reverse=True)
+    return [item["itemcode"] for item in items[:top_n]]
 
 
 def build_etf_universe(
     target: str, cfg: StockFilterConfig, fetcher, lookback: str
 ) -> list:
-    """ETF는 시총 상위 N·관리종목 개념이 없으므로 유동성·상장기간·가격 필터만 적용한다.
+    """시총 상위 cfg.etf_top_n개 ETF에 유동성·상장기간·가격 필터를 적용한다.
 
     종목 단위 실패는 전체 배치를 막지 않도록 개별적으로 격리한다.
     """
     try:
-        tickers = _etf_ticker_list()
+        tickers = _etf_ticker_list(cfg.etf_top_n)
     except Exception as exc:  # noqa: BLE001 - 목록 조회 실패도 전체를 막지 않는다
         log.warning("ETF 티커 목록 조회 실패: %s", exc)
         return []
