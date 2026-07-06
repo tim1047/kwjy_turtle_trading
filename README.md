@@ -4,6 +4,8 @@
 
 ## 설치
 
+**요구 사항:** Python 3.11+
+
 ### 1. 레포지토리 클론 및 가상 환경 설정
 
 ```bash
@@ -50,7 +52,6 @@ python -m turtle.main --no-send
 스크리닝 결과는 다음 정보를 포함합니다:
 
 - **Breakout Signals**: 55일 고가를 넘은 종목 (진입 신호)
-- **Liquidation Signals**: 20일 저가를 내린 종목 (청산 신호)
 - **Position Sizing**: 각 종목의 추천 거래 단위 (계정 규모, ATR 변동성 기반)
 - **구성**: KOSPI/KOSDAQ 별 스크리닝 결과, ETF 포함 (설정 가능)
 
@@ -114,45 +115,3 @@ tail -20 run.log
 - **히스토리컬 백테스팅**: 설계 범위 밖 (과거 재현성은 `--date` 플래그로 제공)
 - **데이터 영속성**: 무상태 배치로 데이터베이스 없음
 
-## 기술 스택
-
-- **Python 3.8+**: 핵심 언어
-- **pandas / numpy**: 데이터 처리, 지표 계산
-- **pykrx**: KRX 데이터 (안정적인 경로만 사용)
-- **requests**: HTTP 호출 (Naver Finance 크롤링, Telegram API)
-- **pyyaml**: 설정 파일 파싱
-- **python-dotenv**: 환경변수 관리
-- **pytest**: 단위 테스트
-
-## 아키텍처 개요
-
-```
-config.yaml + .env
-       ↓
-load_config()
-       ↓
-run(target_date, config, fetcher, send=True)
-       ├─ get_business_days() → 거래일 목록
-       ├─ build_stock_universe() → KOSPI/KOSDAQ 필터링
-       ├─ build_etf_universe() → ETF 필터링
-       ├─ compute_signals() → 55일/20일 신호
-       ├─ compute_trading_params() → 거래 단위
-       ├─ format_telegram_report() → 보고서
-       └─ send_telegram() → 전송 (send=True일 때)
-```
-
-각 함수는 순수 함수(I/O 없음) 또는 명시적 I/O를 분리하여 설계되어 있습니다.
-
-## 재현성 및 디버깅
-
-특정 날짜의 스크리닝 결과를 다시 계산하려면:
-
-```bash
-python -m turtle.main --date 2026-07-03 --no-send
-```
-
-결과가 stdout으로만 출력되므로 로그 레벨(DEBUG)을 올려 세부 정보를 확인할 수 있습니다.
-
-## 라이선스
-
-본 프로젝트는 교육 및 개인 사용 목적입니다. 상업적 사용 전 법적 검토(거래소 규정, 증권거래법 등)가 필수입니다.
