@@ -1,0 +1,27 @@
+account:
+  total_value: 100000000
+  risk_pct: 0.01
+  max_units_per_asset: 4
+  max_units_correlated: 6
+  max_units_total: 12
+
+filters_stocks:
+  min_listing_days: 300
+  min_avg_turnover_20: 10000000000
+  min_avg_volume_20: 100000
+  min_price: 1000
+  min_market_cap: 300000000000
+  kospi_top_n: 200
+  kosdaq_top_n: 100
+  exclude_preferred: true
+  exclude_spac: true
+  exclude_recent_split: true
+
+approaching_pct: 0.98
+
+assets:
+  stocks: true
+  etf: true
+  crypto: false
+
+telegram_chat_id: "YOUR_CHAT_ID"
