@@ -27,16 +27,18 @@ def true_range(df: pd.DataFrame) -> pd.Series:
 
 
 def atr_wilder(tr: pd.Series, period: int = 20) -> pd.Series:
+    original_index = tr.index
     tr = tr.reset_index(drop=True)
     atr = pd.Series(np.nan, index=tr.index, dtype=float)
     if len(tr) < period:
-        return atr
+        return pd.Series(np.nan, index=original_index, dtype=float)
     seed = tr.iloc[:period].mean()
     atr.iloc[period - 1] = seed
     prev = seed
     for i in range(period, len(tr)):
         prev = (prev * (period - 1) + tr.iloc[i]) / period
         atr.iloc[i] = prev
+    atr.index = original_index
     return atr
 
 
