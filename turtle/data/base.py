@@ -41,3 +41,26 @@ class DataFetcher(ABC):
         """Fetch OHLCV data for ticker between start/end ("YYYYMMDD" strings),
         returning the standard schema DataFrame."""
         ...
+
+
+class CachingFetcher(DataFetcher):
+    """DataFetcher를 감싸 (ticker, start, end) 단위로 결과를 메모이즈하는 래퍼.
+
+    유니버스 필터링(build_stock_universe/build_etf_universe)과 이후 스크리닝
+    단계가 동일한 (ticker, lookback, target) 인자로 같은 종목의 OHLCV를 두 번
+    조회하는 문제를 없애기 위한 것이다 (프로세스/실행 범위 내 인메모리 캐시,
+    디스크·DB에는 아무것도 남기지 않는다 — 무상태 파이프라인 원칙 유지).
+
+    래핑 대상 fetcher의 재시도/백오프 동작은 그대로 위임하며, 캐시는 성공한
+    호출의 "반복"만 없앨 뿐 실패(캐시 미스) 시의 예외 전파는 건드리지 않는다.
+    """
+
+    def __init__(self, inner: DataFetcher):
+        self._inner = inner
+        self._cache: dict[tuple[str, str, str], pd.DataFrame] = {}
+
+    def get_ohlcv(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+        key = (ticker, start, end)
+        if key not in self._cache:
+            self._cache[key] = self._inner.get_ohlcv(ticker, start, end)
+        return self._cache[key]

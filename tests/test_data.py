@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from turtle.data.base import normalize_pykrx_ohlcv, with_retry
+from turtle.data.base import CachingFetcher, DataFetcher, normalize_pykrx_ohlcv, with_retry
 from turtle.data.krx import KrxFetcher
 
 
@@ -148,3 +148,50 @@ def test_krx_fetcher_retries_then_succeeds(monkeypatch):
 
     assert calls["n"] == 2
     assert out["open"].iloc[0] == 1
+
+
+class _CountingFetcher(DataFetcher):
+    """(ticker, start, end)별 고유 DataFrame을 반환하며 호출 횟수를 기록하는 페이크."""
+
+    def __init__(self):
+        self.calls = []
+
+    def get_ohlcv(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+        self.calls.append((ticker, start, end))
+        return pd.DataFrame({"close": [len(self.calls)]})
+
+
+def test_caching_fetcher_hits_cache_on_identical_args():
+    inner = _CountingFetcher()
+    fetcher = CachingFetcher(inner)
+
+    first = fetcher.get_ohlcv("005930", "20260101", "20260201")
+    second = fetcher.get_ohlcv("005930", "20260101", "20260201")
+
+    assert inner.calls == [("005930", "20260101", "20260201")]
+    assert first["close"].iloc[0] == second["close"].iloc[0]
+    pd.testing.assert_frame_equal(first, second)
+
+
+def test_caching_fetcher_different_ticker_triggers_new_call():
+    inner = _CountingFetcher()
+    fetcher = CachingFetcher(inner)
+
+    fetcher.get_ohlcv("005930", "20260101", "20260201")
+    fetcher.get_ohlcv("000660", "20260101", "20260201")
+
+    assert len(inner.calls) == 2
+    assert inner.calls == [
+        ("005930", "20260101", "20260201"),
+        ("000660", "20260101", "20260201"),
+    ]
+
+
+def test_caching_fetcher_different_date_range_triggers_new_call():
+    inner = _CountingFetcher()
+    fetcher = CachingFetcher(inner)
+
+    fetcher.get_ohlcv("005930", "20260101", "20260201")
+    fetcher.get_ohlcv("005930", "20260102", "20260201")
+
+    assert len(inner.calls) == 2

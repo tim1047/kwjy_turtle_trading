@@ -6,7 +6,7 @@ from pykrx import stock as pykrx_stock
 
 from turtle.calendar import get_business_days, lookback_start, resolve_target_date
 from turtle.config import Config
-from turtle.data.base import with_retry
+from turtle.data.base import CachingFetcher, with_retry
 from turtle.indicators import compute_indicators
 from turtle.report.telegram import ScreenResult, format_report, send_telegram
 from turtle.signals import APPROACHING, BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
@@ -116,6 +116,11 @@ def run(target: date | None, cfg: Config, fetcher, send: bool = True) -> str:
     resolved = _resolve_target(target)
     target_str = resolved.strftime("%Y%m%d")
     lookback = lookback_start(target_str, days=520)  # min_listing_days(300거래일) 확보용 여유
+
+    # 유니버스 필터링(build_stock_universe/build_etf_universe)과 이후 스크리닝이
+    # 동일 (ticker, lookback, target_str)로 같은 종목을 두 번 조회하지 않도록,
+    # 이 실행(run) 범위에서만 유효한 캐시로 fetcher를 감싼다.
+    fetcher = CachingFetcher(fetcher)
 
     results = []
     counts = {"stocks": 0, "etf": 0}
