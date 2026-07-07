@@ -21,7 +21,7 @@ def get_open_positions(database_url: str) -> list[Position]:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT ticker, name, market, entry_price, n, entry_date "
-                "FROM positions ORDER BY ticker"
+                "FROM turtle_asset ORDER BY ticker"
             )
             rows = cur.fetchall()
     finally:
