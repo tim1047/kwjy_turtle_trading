@@ -66,6 +66,25 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
     return "\n".join(lines)
 
 
+def format_stoploss_report(target: str, results: list) -> str:
+    lines = [f"⛔ 보유종목 손절가 체크 — {target}", ""]
+    if not results:
+        lines.append("보유 종목 없음")
+        return "\n".join(lines)
+    for r in results:
+        flags = []
+        if r.breach_2n:
+            flags.append("2N 이탈")
+        if r.breach_10d:
+            flags.append("10일저가 이탈")
+        flag_str = f" ⚠️ {' / '.join(flags)}" if flags else ""
+        lines.append(
+            f"• {r.name}({r.ticker}) 종가 {_fmt_won(r.close)}\n"
+            f"  2N손절 {_fmt_won(r.stop_2n)} / 10일저가 {_fmt_won(r.stop_10d)}{flag_str}"
+        )
+    return "\n".join(lines)
+
+
 def send_telegram(text: str, bot_token: str, chat_id: str) -> None:
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     # 텔레그램 4096자 제한 → 분할 전송
