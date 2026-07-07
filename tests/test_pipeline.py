@@ -15,6 +15,7 @@ def _cfg():
         assets={"stocks": True, "etf": True, "crypto": False},
         telegram_chat_id="1",
         telegram_bot_token="t",
+        database_url="postgresql://fake",
     )
 
 
