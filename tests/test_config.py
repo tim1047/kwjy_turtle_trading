@@ -39,3 +39,37 @@ def test_load_config_reads_yaml_and_env(tmp_path, monkeypatch):
     assert cfg.assets["crypto"] is False
     assert cfg.telegram_chat_id == "123"
     assert cfg.telegram_bot_token == "tok-abc"
+
+def test_load_config_reads_database_url(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        "account:\n"
+        "  total_value: 100000000\n"
+        "  risk_pct: 0.01\n"
+        "  max_units_per_asset: 4\n"
+        "  max_units_correlated: 6\n"
+        "  max_units_total: 12\n"
+        "filters_stocks:\n"
+        "  min_listing_days: 300\n"
+        "  min_avg_turnover_20: 10000000000\n"
+        "  min_avg_volume_20: 100000\n"
+        "  min_price: 1000\n"
+        "  min_market_cap: 300000000000\n"
+        "  kospi_top_n: 200\n"
+        "  kosdaq_top_n: 100\n"
+        "  etf_top_n: 100\n"
+        "  exclude_preferred: true\n"
+        "  exclude_spac: true\n"
+        "  exclude_recent_split: true\n"
+        "approaching_pct: 0.98\n"
+        "assets:\n"
+        "  stocks: true\n"
+        "  etf: true\n"
+        "  crypto: false\n"
+        'telegram_chat_id: "123"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok-abc")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw@localhost:5432/turtle")
+    cfg = load_config(str(cfg_file))
+    assert cfg.database_url == "postgresql://user:pw@localhost:5432/turtle"

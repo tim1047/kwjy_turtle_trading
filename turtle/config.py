@@ -37,6 +37,7 @@ class Config:
     assets: dict
     telegram_chat_id: str
     telegram_bot_token: str
+    database_url: str
 
 
 def load_config(path: str = "config.yaml") -> Config:
@@ -50,4 +51,5 @@ def load_config(path: str = "config.yaml") -> Config:
         assets=raw["assets"],
         telegram_chat_id=str(raw["telegram_chat_id"]),
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+        database_url=os.environ.get("DATABASE_URL", ""),
     )
