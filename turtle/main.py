@@ -11,7 +11,7 @@ load_dotenv()
 
 from turtle.config import load_config
 from turtle.data.krx import KrxFetcher
-from turtle.pipeline import run
+from turtle.pipeline import run, run_stoploss_check
 
 
 def main():
@@ -30,8 +30,12 @@ def main():
     )
     cfg = load_config()
     fetcher = KrxFetcher()
-    text = run(target, cfg, fetcher, send=not args.no_send)
-    print(text)
+
+    stoploss_text = run_stoploss_check(target, cfg, fetcher, send=not args.no_send)
+    print(stoploss_text)
+
+    scan_text = run(target, cfg, fetcher, send=not args.no_send)
+    print(scan_text)
 
 
 if __name__ == "__main__":
