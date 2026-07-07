@@ -178,7 +178,12 @@ def run_stoploss_check(
     target_str = resolved.strftime("%Y%m%d")
     lookback = lookback_start(target_str, days=30)  # 10일 저가 계산에 충분한 여유
 
-    positions = get_open_positions(cfg.database_url)
+    try:
+        positions = get_open_positions(cfg.database_url)
+    except Exception as exc:  # noqa: BLE001 - DB 조회 실패가 매수 신호 스캔을 막지 않도록
+        log.warning("보유종목 조회 실패: %s", exc)
+        positions = []
+
     results = []
     for p in positions:
         try:

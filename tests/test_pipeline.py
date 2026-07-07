@@ -103,3 +103,19 @@ def test_run_stoploss_check_reports_open_positions():
 
     assert "삼성전자" in text
     assert "9,000" in text
+
+
+def test_run_stoploss_check_survives_db_failure():
+    """get_open_positions()가 DB 오류로 예외를 던져도 run_stoploss_check는
+    예외를 전파하지 않고 '보유 종목 없음' 리포트를 반환해야 한다.
+
+    이 함수는 main.py에서 매수 신호 스캔(run())보다 먼저 호출되므로,
+    여기서 예외가 전파되면 DB 문제 하나로 전체 스캔이 죽는다.
+    """
+    cfg = _cfg()
+    fetcher = _FakeStopFetcher(_stop_check_df())
+    with patch("turtle.pipeline.get_open_positions", side_effect=Exception("DB down")), \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        text = run_stoploss_check(None, cfg, fetcher, send=False)
+
+    assert "보유" in text
