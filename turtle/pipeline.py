@@ -8,8 +8,10 @@ from turtle.calendar import get_business_days, lookback_start, resolve_target_da
 from turtle.config import Config
 from turtle.data.base import CachingFetcher, with_retry
 from turtle.indicators import compute_indicators
-from turtle.report.telegram import ScreenResult, format_report, send_telegram
+from turtle.positions.store import get_open_positions
+from turtle.report.telegram import ScreenResult, format_report, format_stoploss_report, send_telegram
 from turtle.signals import APPROACHING, BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
+from turtle.stoploss import check_position
 from turtle.trading_params import compute_trading_params
 from turtle.universe.krx_etf import build_etf_universe
 from turtle.universe.krx_stocks import build_stock_universe
@@ -156,6 +158,36 @@ def run(target: date | None, cfg: Config, fetcher, send: bool = True) -> str:
         if r.status in (BREAKOUT_TODAY, BREAKOUT_CLOSE, APPROACHING)
     ]
     text = format_report(resolved.strftime("%Y-%m-%d"), signalled, counts)
+    if send:
+        try:
+            send_telegram(text, cfg.telegram_bot_token, cfg.telegram_chat_id)
+        except Exception as exc:  # noqa: BLE001
+            log.error("텔레그램 전송 실패: %s", exc)
+    return text
+
+
+def run_stoploss_check(
+    target: date | None, cfg: Config, fetcher, send: bool = True
+) -> str:
+    """보유종목(positions 테이블) 2N/10일저가 손절 체크 (I/O).
+
+    positions 테이블엔 status 컬럼이 없다 — 행이 존재 = 보유중으로 취급하며,
+    매도된 종목 행 삭제는 사용자가 수동으로 처리한다.
+    """
+    resolved = _resolve_target(target)
+    target_str = resolved.strftime("%Y%m%d")
+    lookback = lookback_start(target_str, days=30)  # 10일 저가 계산에 충분한 여유
+
+    positions = get_open_positions(cfg.database_url)
+    results = []
+    for p in positions:
+        try:
+            df = fetcher.get_ohlcv(p.ticker, lookback, target_str)
+            results.append(check_position(p, df))
+        except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
+            log.warning("손절가 체크 실패 %s: %s", p.ticker, exc)
+
+    text = format_stoploss_report(resolved.strftime("%Y-%m-%d"), results)
     if send:
         try:
             send_telegram(text, cfg.telegram_bot_token, cfg.telegram_chat_id)

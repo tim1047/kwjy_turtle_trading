@@ -1,8 +1,12 @@
+from datetime import date
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 
 from turtle.config import AccountConfig, StockFilterConfig, Config
-from turtle.pipeline import screen_ticker
+from turtle.pipeline import run_stoploss_check, screen_ticker
+from turtle.positions.store import Position
 from turtle.signals import BREAKOUT_TODAY, NEUTRAL
 
 
@@ -64,3 +68,38 @@ def test_screen_ticker_neutral_when_no_breakout():
     res = screen_ticker("000660", "SK하이닉스", "KOSPI", _flat_df(), _cfg())
     assert res.status == NEUTRAL
     assert res.gap_pct >= 0
+
+
+class _FakeStopFetcher:
+    def __init__(self, df: pd.DataFrame):
+        self._df = df
+
+    def get_ohlcv(self, ticker, start, end):
+        return self._df
+
+
+def _stop_check_df() -> pd.DataFrame:
+    lows = [9500, 9400, 9300, 9200, 9100, 9050, 9000, 9600, 9700, 9800, 9900]
+    idx = pd.date_range("2026-06-01", periods=len(lows), freq="D")
+    return pd.DataFrame(
+        {
+            "open": lows, "high": [x + 100 for x in lows],
+            "low": lows, "close": lows, "volume": [1000] * len(lows),
+        },
+        index=idx,
+    )
+
+
+def test_run_stoploss_check_reports_open_positions():
+    cfg = _cfg()
+    fetcher = _FakeStopFetcher(_stop_check_df())
+    position = Position(
+        ticker="005930", name="삼성전자", market="STOCK",
+        entry_price=10000.0, n=500.0, entry_date="2026-06-01",
+    )
+    with patch("turtle.pipeline.get_open_positions", return_value=[position]), \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        text = run_stoploss_check(None, cfg, fetcher, send=False)
+
+    assert "삼성전자" in text
+    assert "9,000" in text
