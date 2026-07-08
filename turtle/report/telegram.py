@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from html import escape as _esc
 
 import requests
 
@@ -36,7 +35,7 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
     breakouts = [r for r in results if r.status in (BREAKOUT_TODAY, BREAKOUT_CLOSE)]
     approaching = [r for r in results if r.status == APPROACHING]
 
-    lines = [f"📊 <b>터틀 스크리닝 리포트</b> — {_esc(target)}", ""]
+    lines = [f"📊 터틀 스크리닝 리포트 — {target}", ""]
     lines.append(
         f"유니버스: 주식 {universe_counts.get('stocks', 0)}개 / "
         f"ETF {universe_counts.get('etf', 0)}개"
@@ -44,12 +43,12 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
     lines.append(f"매수 신호: {len(breakouts)}종목 / 관찰: {len(approaching)}종목")
     lines.append("")
 
-    lines.append("🔥 <b>매수 신호 종목</b>")
+    lines.append("🔥 매수 신호 종목")
     if breakouts:
         for r in breakouts:
-            flag = "" if r.tradable else f" ⚠️ <i>{_esc(r.note)}</i>"
+            flag = "" if r.tradable else f" ⚠️{r.note}"
             lines.append(
-                f"• <b>{_esc(r.name)}</b> (<code>{_esc(r.ticker)}</code>) {_esc(r.status)}\n"
+                f"• {r.name}({r.ticker}) {r.status}\n"
                 f"  종가 {_fmt_won(r.close)} / 트리거 {_fmt_won(r.entry_trigger)} / "
                 f"N {_fmt_won(r.n)} / ADX {_fmt_adx(r.adx)}\n"
                 f"  손절 {_fmt_won(r.stop_loss_price)} / "
@@ -59,11 +58,11 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
         lines.append("• 없음")
     lines.append("")
 
-    lines.append("👀 <b>관찰 종목</b> (2% 이내 근접)")
+    lines.append("👀 관찰 종목 (2% 이내 근접)")
     if approaching:
         for r in approaching:
             lines.append(
-                f"• <b>{_esc(r.name)}</b> (<code>{_esc(r.ticker)}</code>) 종가 {_fmt_won(r.close)} / "
+                f"• {r.name}({r.ticker}) 종가 {_fmt_won(r.close)} / "
                 f"트리거 {_fmt_won(r.entry_trigger)} / 이격 {r.gap_pct:.2f}% / "
                 f"ADX {_fmt_adx(r.adx)}"
             )
@@ -74,7 +73,7 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
 
 
 def format_stoploss_report(target: str, results: list) -> str:
-    lines = [f"⛔ <b>보유종목 손절가 체크</b> — {_esc(target)}", ""]
+    lines = [f"⛔ 보유종목 손절가 체크 — {target}", ""]
     if not results:
         lines.append("보유 종목 없음")
         return "\n".join(lines)
@@ -84,9 +83,9 @@ def format_stoploss_report(target: str, results: list) -> str:
             flags.append("2N 이탈")
         if r.breach_10d:
             flags.append("10일저가 이탈")
-        flag_str = f" ⚠️ <b>{' / '.join(flags)}</b>" if flags else ""
+        flag_str = f" ⚠️ {' / '.join(flags)}" if flags else ""
         lines.append(
-            f"• <b>{_esc(r.name)}</b> (<code>{_esc(r.ticker)}</code>) 종가 {_fmt_won(r.close)}\n"
+            f"• {r.name}({r.ticker}) 종가 {_fmt_won(r.close)}\n"
             f"  2N손절 {_fmt_won(r.stop_2n)} / 10일저가 {_fmt_won(r.stop_10d)}{flag_str}"
         )
     return "\n".join(lines)
@@ -97,9 +96,5 @@ def send_telegram(text: str, bot_token: str, chat_id: str) -> None:
     # 텔레그램 4096자 제한 → 분할 전송
     chunks = [text[i:i + 3500] for i in range(0, len(text), 3500)] or [""]
     for chunk in chunks:
-        resp = requests.post(
-            url,
-            data={"chat_id": chat_id, "text": chunk, "parse_mode": "HTML"},
-            timeout=15,
-        )
+        resp = requests.post(url, data={"chat_id": chat_id, "text": chunk}, timeout=15)
         resp.raise_for_status()
