@@ -8,7 +8,7 @@ def _r(**over):
         ticker="005930", name="삼성전자", market="KOSPI", close=71000,
         entry_trigger=70000, n=1500, stop_loss_price=67000,
         unit_size=666, unit_notional=46620000, status=BREAKOUT_TODAY,
-        gap_pct=0.0, tradable=True, note="",
+        gap_pct=0.0, tradable=True, note="", adx=30.0,
     )
     base.update(over)
     return ScreenResult(**base)
@@ -64,3 +64,31 @@ def test_format_stoploss_report_flags_breach():
     assert text.count("⚠️") == 1
     assert "8,500" in text
     assert "9,000" in text
+
+
+def test_report_shows_adx_value():
+    text = format_report(
+        "2026-07-06",
+        [_r(adx=32.5)],
+        {"stocks": 120, "etf": 30},
+    )
+    assert "ADX 32.5" in text
+
+
+def test_report_shows_adx_dash_when_nan():
+    text = format_report(
+        "2026-07-06",
+        [_r(adx=float("nan"))],
+        {"stocks": 120, "etf": 30},
+    )
+    assert "ADX -" in text
+    assert "nan" not in text.lower()
+
+
+def test_report_approaching_shows_adx_value():
+    text = format_report(
+        "2026-07-06",
+        [_r(status=APPROACHING, name="근접주", gap_pct=1.2, adx=28.0)],
+        {"stocks": 120, "etf": 30},
+    )
+    assert "ADX 28.0" in text

@@ -20,10 +20,15 @@ class ScreenResult:
     gap_pct: float
     tradable: bool
     note: str
+    adx: float = float("nan")
 
 
 def _fmt_won(v: float) -> str:
     return f"{v:,.0f}"
+
+
+def _fmt_adx(v: float) -> str:
+    return "-" if v != v else f"{v:.1f}"
 
 
 def format_report(target: str, results: list, universe_counts: dict) -> str:
@@ -45,7 +50,7 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
             lines.append(
                 f"• {r.name}({r.ticker}) {r.status}\n"
                 f"  종가 {_fmt_won(r.close)} / 트리거 {_fmt_won(r.entry_trigger)} / "
-                f"N {_fmt_won(r.n)}\n"
+                f"N {_fmt_won(r.n)} / ADX {_fmt_adx(r.adx)}\n"
                 f"  손절 {_fmt_won(r.stop_loss_price)} / "
                 f"1유닛 {_fmt_won(r.unit_size)}주 ({_fmt_won(r.unit_notional)}원){flag}"
             )
@@ -58,7 +63,8 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
         for r in approaching:
             lines.append(
                 f"• {r.name}({r.ticker}) 종가 {_fmt_won(r.close)} / "
-                f"트리거 {_fmt_won(r.entry_trigger)} / 이격 {r.gap_pct:.2f}%"
+                f"트리거 {_fmt_won(r.entry_trigger)} / 이격 {r.gap_pct:.2f}% / "
+                f"ADX {_fmt_adx(r.adx)}"
             )
     else:
         lines.append("• 없음")
