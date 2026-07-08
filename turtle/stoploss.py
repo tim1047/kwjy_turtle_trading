@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-
-import pandas as pd
-
 from turtle.indicators import rolling_low
 from turtle.positions.store import Position
+
+import pandas as pd
 
 
 @dataclass(frozen=True)
@@ -11,6 +10,7 @@ class StopCheckResult:
     ticker: str
     name: str
     market: str
+    entry_price: float
     close: float
     stop_2n: float
     stop_10d: float
@@ -29,6 +29,7 @@ def check_position(position: Position, df: pd.DataFrame) -> StopCheckResult:
         ticker=position.ticker,
         name=position.name,
         market=position.market,
+        entry_price=position.entry_price,
         close=close,
         stop_2n=stop_2n,
         stop_10d=stop_10d,

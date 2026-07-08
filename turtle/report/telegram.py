@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 from html import escape as _esc
+from turtle.signals import APPROACHING, BREAKOUT_CLOSE, BREAKOUT_TODAY
 
 import requests
-
-from turtle.signals import BREAKOUT_TODAY, BREAKOUT_CLOSE, APPROACHING
 
 
 @dataclass(frozen=True)
@@ -114,7 +113,7 @@ def format_stoploss_report(target: str, results: list) -> str:
             flags.append("10일저가 이탈")
         card = (
             f"🔹 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code>\n"
-            f"   종가 {_fmt_won(r.close)} · 2N손절 {_fmt_won(r.stop_2n)} · "
+            f"   진입가 {_fmt_won(r.entry_price)} · 종가 {_fmt_won(r.close)} · 2N손절 {_fmt_won(r.stop_2n)} · "
             f"10일저가 {_fmt_won(r.stop_10d)}"
         )
         if flags:
@@ -127,7 +126,7 @@ def format_stoploss_report(target: str, results: list) -> str:
 def send_telegram(text: str, bot_token: str, chat_id: str) -> None:
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     # 텔레그램 4096자 제한 → 분할 전송
-    chunks = [text[i:i + 3500] for i in range(0, len(text), 3500)] or [""]
+    chunks = [text[i : i + 3500] for i in range(0, len(text), 3500)] or [""]
     for chunk in chunks:
         resp = requests.post(
             url,
