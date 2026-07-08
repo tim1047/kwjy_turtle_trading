@@ -195,3 +195,138 @@ def test_caching_fetcher_different_date_range_triggers_new_call():
     fetcher.get_ohlcv("005930", "20260102", "20260201")
 
     assert len(inner.calls) == 2
+
+
+def test_normalize_upbit_maps_and_sorts():
+    from turtle.data.upbit import normalize_upbit_ohlcv
+    from datetime import datetime
+
+    rows = [
+        {
+            "candle_date_time_utc": "2026-07-08T00:00:00",
+            "opening_price": 2.0, "high_price": 4.0, "low_price": 1.0,
+            "trade_price": 3.0, "candle_acc_trade_volume": 20.0,
+        },
+        {
+            "candle_date_time_utc": "2026-07-07T00:00:00",
+            "opening_price": 1.0, "high_price": 3.0, "low_price": 0.0,
+            "trade_price": 2.0, "candle_acc_trade_volume": 10.0,
+        },
+    ]
+    out = normalize_upbit_ohlcv(
+        rows, datetime(2026, 7, 7), datetime(2026, 7, 8)
+    )
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    assert list(out.index) == sorted(out.index)
+    assert out["close"].iloc[0] == 2.0  # 2026-07-07 먼저
+    assert out["close"].iloc[1] == 3.0  # 2026-07-08
+
+
+def test_normalize_upbit_filters_by_start_end():
+    from turtle.data.upbit import normalize_upbit_ohlcv
+    from datetime import datetime
+
+    rows = [
+        {
+            "candle_date_time_utc": "2026-07-06T00:00:00",  # start 이전 -> 제외
+            "opening_price": 1.0, "high_price": 1.0, "low_price": 1.0,
+            "trade_price": 1.0, "candle_acc_trade_volume": 1.0,
+        },
+        {
+            "candle_date_time_utc": "2026-07-07T00:00:00",
+            "opening_price": 2.0, "high_price": 2.0, "low_price": 2.0,
+            "trade_price": 2.0, "candle_acc_trade_volume": 2.0,
+        },
+    ]
+    out = normalize_upbit_ohlcv(
+        rows, datetime(2026, 7, 7), datetime(2026, 7, 8)
+    )
+    assert len(out) == 1
+    assert out["close"].iloc[0] == 2.0
+
+
+def test_upbit_fetcher_single_page(monkeypatch):
+    import turtle.data.upbit as upbit_mod
+
+    calls = []
+
+    class _FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return [
+                {
+                    "candle_date_time_utc": "2026-07-08T00:00:00",
+                    "opening_price": 2.0, "high_price": 4.0, "low_price": 1.0,
+                    "trade_price": 3.0, "candle_acc_trade_volume": 20.0,
+                },
+                {
+                    "candle_date_time_utc": "2026-07-07T00:00:00",
+                    "opening_price": 1.0, "high_price": 3.0, "low_price": 0.0,
+                    "trade_price": 2.0, "candle_acc_trade_volume": 10.0,
+                },
+            ]
+
+    def fake_get(url, params=None, timeout=None):
+        calls.append(params)
+        return _FakeResp()
+
+    monkeypatch.setattr(upbit_mod.requests, "get", fake_get)
+    monkeypatch.setattr(upbit_mod.time, "sleep", lambda s: None)
+
+    fetcher = upbit_mod.UpbitFetcher()
+    out = fetcher.get_ohlcv("KRW-BTC", "20260707", "20260708")
+
+    assert len(calls) == 1  # 2건 < 200 -> 페이지네이션 없음
+    assert calls[0]["market"] == "KRW-BTC"
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    assert len(out) == 2
+
+
+def test_upbit_fetcher_paginates_when_full_page(monkeypatch):
+    import turtle.data.upbit as upbit_mod
+
+    calls = []
+
+    def _page(to_param):
+        # to_param이 없으면(첫 페이지) 2026-07-08부터 200일치, 있으면 그 이전 1일치
+        if to_param is None:
+            base = pd.Timestamp("2026-07-08")
+            return [
+                {
+                    "candle_date_time_utc": (base - pd.Timedelta(days=i)).strftime("%Y-%m-%dT00:00:00"),
+                    "opening_price": 1.0, "high_price": 1.0, "low_price": 1.0,
+                    "trade_price": 1.0, "candle_acc_trade_volume": 1.0,
+                }
+                for i in range(200)  # 가득 찬 페이지 -> 다음 페이지 요청 유발
+            ]
+        return [
+            {
+                "candle_date_time_utc": "2026-01-01T00:00:00",
+                "opening_price": 1.0, "high_price": 1.0, "low_price": 1.0,
+                "trade_price": 1.0, "candle_acc_trade_volume": 1.0,
+            }
+        ]
+
+    class _FakeResp:
+        def __init__(self, data):
+            self._data = data
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self._data
+
+    def fake_get(url, params=None, timeout=None):
+        calls.append(params)
+        return _FakeResp(_page(params.get("to") if len(calls) > 1 else None))
+
+    monkeypatch.setattr(upbit_mod.requests, "get", fake_get)
+    monkeypatch.setattr(upbit_mod.time, "sleep", lambda s: None)
+
+    fetcher = upbit_mod.UpbitFetcher()
+    fetcher.get_ohlcv("KRW-BTC", "20250101", "20260708")
+
+    assert len(calls) == 2  # 첫 페이지 200개(가득 참) -> 두번째 페이지 요청됨
