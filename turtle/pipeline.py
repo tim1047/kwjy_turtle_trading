@@ -199,6 +199,8 @@ def run_stoploss_check(
     results = []
     for p in positions:
         try:
+            # p.market은 STOCK/ETF/CRYPTO만 유효(positions 테이블 문서화된 값역) —
+            # 그 외 값은 KeyError로 아래 except에서 로그 후 스킵된다(다른 자산군으로 오탐 라우팅하는 것보다 안전).
             fetcher = fetchers[p.market]
             if p.market == "CRYPTO":
                 df = fetcher.get_ohlcv(p.ticker, crypto_lookback, crypto_target)

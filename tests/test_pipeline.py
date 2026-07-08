@@ -137,6 +137,30 @@ def test_run_stoploss_check_survives_db_failure():
     assert "보유" in text
 
 
+def test_run_stoploss_check_skips_position_with_unrecognized_market():
+    """p.market이 STOCK/ETF/CRYPTO 중 하나가 아니면(예: UNKNOWN),
+    KeyError가 나도 배치 크래시 없이 그 포지션은 스킵되고 다른 정상 포지션은 처리된다.
+    """
+    cfg = _cfg()
+    stock_fetcher = _FakeStopFetcher(_stop_check_df())
+    fetchers = {"STOCK": stock_fetcher}
+    good_position = Position(
+        ticker="005930", name="삼성전자", market="STOCK",
+        entry_price=10000.0, n=500.0, entry_date="2026-06-01",
+    )
+    bad_position = Position(
+        ticker="999999", name="알수없는종목", market="UNKNOWN",
+        entry_price=1000.0, n=100.0, entry_date="2026-06-01",
+    )
+    with patch("turtle.pipeline.get_open_positions", return_value=[good_position, bad_position]), \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        text = run_stoploss_check(None, cfg, fetchers, send=False)
+
+    # UNKNOWN market인 포지션은 조용히 스킵되고(크래시 없음), 나머지 정상 포지션은 그대로 리포트된다.
+    assert "삼성전자" in text
+    assert "알수없는종목" not in text
+
+
 def test_run_stoploss_check_routes_crypto_position_to_crypto_fetcher():
     cfg = _cfg()
     stock_fetcher = _FakeStopFetcher(_stop_check_df())          # 마지막 종가 9,900
@@ -176,7 +200,7 @@ def test_run_includes_crypto_when_enabled(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "get_business_days", lambda *a, **k: [date(2026, 7, 7)])
 
     text = run(date(2026, 7, 7), cfg, fetchers, send=False)
-    assert "KRW-BTC" in text or "코인" in text
+    assert "KRW-BTC" in text
 
 
 def test_screen_ticker_crypto_uses_fractional_min_unit():
