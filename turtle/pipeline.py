@@ -44,7 +44,8 @@ def screen_ticker(ticker: str, name: str, market: str, df, cfg: Config) -> Scree
         approaching_pct=cfg.approaching_pct,
         sma_200=ind.sma_200,
     )
-    params = compute_trading_params(ind.high_55, ind.atr_20, cfg.account)
+    min_unit = cfg.filters_crypto.min_unit if market == "CRYPTO" else 1.0
+    params = compute_trading_params(ind.high_55, ind.atr_20, cfg.account, min_unit=min_unit)
     gap_pct = (
         (ind.high_55 - ind.close) / ind.high_55 * 100 if ind.high_55 else 0.0
     )

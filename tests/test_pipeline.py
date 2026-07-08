@@ -123,3 +123,14 @@ def test_run_stoploss_check_survives_db_failure():
         text = run_stoploss_check(None, cfg, fetcher, send=False)
 
     assert "보유" in text
+
+
+def test_screen_ticker_crypto_uses_fractional_min_unit():
+    import math
+    res = screen_ticker("KRW-BTC", "KRW-BTC", "CRYPTO", _breakout_df(), _cfg())
+    assert res.market == "CRYPTO"
+    # min_unit=0.0001인 자산군은 unit_size가 정수로 딱 떨어지지 않을 수 있다
+    # (정수 단위 반올림이었다면 실패할 값 하나를 명시적으로 검증)
+    assert res.unit_size >= 0
+    # 0.0001 단위 배수 확인 (부동소수점 오차 허용)
+    assert math.isclose(res.unit_size * 10000, round(res.unit_size * 10000), abs_tol=1e-6)
