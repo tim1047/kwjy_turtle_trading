@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from turtle.config import AccountConfig, StockFilterConfig, CryptoFilterConfig, Config
-from turtle.pipeline import run_stoploss_check, screen_ticker
+from turtle.pipeline import run, run_stoploss_check, screen_ticker
 from turtle.positions.store import Position
 from turtle.signals import BREAKOUT_TODAY, NEUTRAL
 
@@ -96,14 +96,14 @@ def _stop_check_df() -> pd.DataFrame:
 
 def test_run_stoploss_check_reports_open_positions():
     cfg = _cfg()
-    fetcher = _FakeStopFetcher(_stop_check_df())
+    fetchers = {"STOCK": _FakeStopFetcher(_stop_check_df()), "CRYPTO": _FakeStopFetcher(_stop_check_df())}
     position = Position(
         ticker="005930", name="삼성전자", market="STOCK",
         entry_price=10000.0, n=500.0, entry_date="2026-06-01",
     )
     with patch("turtle.pipeline.get_open_positions", return_value=[position]), \
          patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
-        text = run_stoploss_check(None, cfg, fetcher, send=False)
+        text = run_stoploss_check(None, cfg, fetchers, send=False)
 
     assert "삼성전자" in text
     assert "9,000" in text
@@ -117,12 +117,50 @@ def test_run_stoploss_check_survives_db_failure():
     여기서 예외가 전파되면 DB 문제 하나로 전체 스캔이 죽는다.
     """
     cfg = _cfg()
-    fetcher = _FakeStopFetcher(_stop_check_df())
+    fetchers = {"STOCK": _FakeStopFetcher(_stop_check_df())}
     with patch("turtle.pipeline.get_open_positions", side_effect=Exception("DB down")), \
          patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
-        text = run_stoploss_check(None, cfg, fetcher, send=False)
+        text = run_stoploss_check(None, cfg, fetchers, send=False)
 
     assert "보유" in text
+
+
+def test_run_stoploss_check_routes_crypto_position_to_crypto_fetcher():
+    cfg = _cfg()
+    stock_fetcher = _FakeStopFetcher(_stop_check_df())
+    crypto_fetcher = _FakeStopFetcher(_stop_check_df())
+    fetchers = {"STOCK": stock_fetcher, "CRYPTO": crypto_fetcher}
+    position = Position(
+        ticker="KRW-BTC", name="KRW-BTC", market="CRYPTO",
+        entry_price=100_000_000.0, n=2_000_000.0, entry_date="2026-06-01",
+    )
+    with patch("turtle.pipeline.get_open_positions", return_value=[position]), \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        text = run_stoploss_check(None, cfg, fetchers, send=False)
+
+    assert "KRW-BTC" in text
+
+
+def test_run_includes_crypto_when_enabled(monkeypatch):
+    cfg = Config(
+        account=AccountConfig(100_000_000, 0.01, 4, 6, 12),
+        filters_stocks=StockFilterConfig(300, 1e10, 1e5, 1000, 3e11, 200, 100, 100,
+                                         True, True, True),
+        filters_crypto=CryptoFilterConfig(tickers=["KRW-BTC"], min_unit=0.0001),
+        approaching_pct=0.98,
+        assets={"stocks": False, "etf": False, "crypto": True},
+        telegram_chat_id="1",
+        telegram_bot_token="t",
+        database_url="postgresql://fake",
+    )
+    crypto_fetcher = _FakeStopFetcher(_breakout_df())
+    fetchers = {"CRYPTO": crypto_fetcher}
+
+    from turtle import pipeline as pipeline_mod
+    monkeypatch.setattr(pipeline_mod, "get_business_days", lambda *a, **k: [date(2026, 7, 7)])
+
+    text = run(date(2026, 7, 7), cfg, fetchers, send=False)
+    assert "KRW-BTC" in text or "코인" in text
 
 
 def test_screen_ticker_crypto_uses_fractional_min_unit():

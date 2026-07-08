@@ -112,47 +112,54 @@ def _resolve_target(target: date | None) -> date:
     return resolve_target_date(target, bdays)
 
 
-def run(target: date | None, cfg: Config, fetcher, send: bool = True) -> str:
+def run(target: date | None, cfg: Config, fetchers: dict, send: bool = True) -> str:
     """전체 스크리닝 파이프라인 오케스트레이션 (I/O).
 
     무상태: 매 호출마다 target_str로부터 전부 다시 계산하며, 디스크/DB에
-    아무것도 쓰지 않는다.
+    아무것도 쓰지 않는다. fetchers는 {"STOCK": ..., "ETF": ..., "CRYPTO": ...}
+    형태로 자산군별 DataFetcher를 담는다.
     """
     resolved = _resolve_target(target)
     target_str = resolved.strftime("%Y%m%d")
     lookback = lookback_start(target_str, days=520)  # min_listing_days(300거래일) 확보용 여유
 
-    # 유니버스 필터링(build_stock_universe/build_etf_universe)과 이후 스크리닝이
-    # 동일 (ticker, lookback, target_str)로 같은 종목을 두 번 조회하지 않도록,
-    # 이 실행(run) 범위에서만 유효한 캐시로 fetcher를 감싼다.
-    fetcher = CachingFetcher(fetcher)
-
     results = []
-    counts = {"stocks": 0, "etf": 0}
+    counts = {"stocks": 0, "etf": 0, "crypto": 0}
 
     if cfg.assets.get("stocks"):
-        tickers = build_stock_universe(target_str, cfg.filters_stocks, fetcher, lookback)
+        stock_fetcher = CachingFetcher(fetchers["STOCK"])
+        tickers = build_stock_universe(target_str, cfg.filters_stocks, stock_fetcher, lookback)
         counts["stocks"] = len(tickers)
         for t in tickers:
             try:
-                df = fetcher.get_ohlcv(t, lookback, target_str)
+                df = stock_fetcher.get_ohlcv(t, lookback, target_str)
                 results.append(screen_ticker(t, _stock_name(t), "STOCK", df, cfg))
             except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
                 log.warning("스크리닝 실패 %s: %s", t, exc)
 
     if cfg.assets.get("etf"):
-        etfs = build_etf_universe(target_str, cfg.filters_stocks, fetcher, lookback)
+        etf_fetcher = CachingFetcher(fetchers["ETF"])
+        etfs = build_etf_universe(target_str, cfg.filters_stocks, etf_fetcher, lookback)
         counts["etf"] = len(etfs)
         names = _etf_name_map()
         for t in etfs:
             try:
-                df = fetcher.get_ohlcv(t, lookback, target_str)
+                df = etf_fetcher.get_ohlcv(t, lookback, target_str)
                 results.append(screen_ticker(t, names.get(t, t), "ETF", df, cfg))
             except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
                 log.warning("ETF 스크리닝 실패 %s: %s", t, exc)
 
     if cfg.assets.get("crypto"):
-        log.info("crypto 자산군은 아직 구현되지 않았습니다 (스킵)")
+        crypto_target = date.today().strftime("%Y%m%d")
+        crypto_lookback = lookback_start(crypto_target, days=520)
+        crypto_fetcher = fetchers["CRYPTO"]
+        counts["crypto"] = len(cfg.filters_crypto.tickers)
+        for t in cfg.filters_crypto.tickers:
+            try:
+                df = crypto_fetcher.get_ohlcv(t, crypto_lookback, crypto_target)
+                results.append(screen_ticker(t, t, "CRYPTO", df, cfg))
+            except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
+                log.warning("코인 스크리닝 실패 %s: %s", t, exc)
 
     # 리포트에는 신호 있는 종목만 (NEUTRAL 제외)
     signalled = [
@@ -169,16 +176,19 @@ def run(target: date | None, cfg: Config, fetcher, send: bool = True) -> str:
 
 
 def run_stoploss_check(
-    target: date | None, cfg: Config, fetcher, send: bool = True
+    target: date | None, cfg: Config, fetchers: dict, send: bool = True
 ) -> str:
     """보유종목(positions 테이블) 2N/10일저가 손절 체크 (I/O).
 
     positions 테이블엔 status 컬럼이 없다 — 행이 존재 = 보유중으로 취급하며,
-    매도된 종목 행 삭제는 사용자가 수동으로 처리한다.
+    매도된 종목 행 삭제는 사용자가 수동으로 처리한다. fetchers는
+    {"STOCK": ..., "ETF": ..., "CRYPTO": ...} 형태이며 포지션의 market으로 라우팅한다.
     """
     resolved = _resolve_target(target)
     target_str = resolved.strftime("%Y%m%d")
     lookback = lookback_start(target_str, days=30)  # 10일 저가 계산에 충분한 여유
+    crypto_target = date.today().strftime("%Y%m%d")
+    crypto_lookback = lookback_start(crypto_target, days=30)
 
     try:
         positions = get_open_positions(cfg.database_url)
@@ -189,7 +199,11 @@ def run_stoploss_check(
     results = []
     for p in positions:
         try:
-            df = fetcher.get_ohlcv(p.ticker, lookback, target_str)
+            fetcher = fetchers[p.market]
+            if p.market == "CRYPTO":
+                df = fetcher.get_ohlcv(p.ticker, crypto_lookback, crypto_target)
+            else:
+                df = fetcher.get_ohlcv(p.ticker, lookback, target_str)
             results.append(check_position(p, df))
         except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
             log.warning("손절가 체크 실패 %s: %s", p.ticker, exc)
