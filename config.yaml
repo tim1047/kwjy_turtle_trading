@@ -22,7 +22,7 @@ approaching_pct: 0.98
 
 assets:
   stocks: true
-  etf: true
+  etf: false
   crypto: false
 
 telegram_chat_id: "-5212469241"
