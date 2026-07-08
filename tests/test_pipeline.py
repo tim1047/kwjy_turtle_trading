@@ -126,11 +126,12 @@ def test_run_stoploss_check_survives_db_failure():
 
 
 def test_screen_ticker_crypto_uses_fractional_min_unit():
-    import math
     res = screen_ticker("KRW-BTC", "KRW-BTC", "CRYPTO", _breakout_df(), _cfg())
     assert res.market == "CRYPTO"
-    # min_unit=0.0001인 자산군은 unit_size가 정수로 딱 떨어지지 않을 수 있다
-    # (정수 단위 반올림이었다면 실패할 값 하나를 명시적으로 검증)
     assert res.unit_size >= 0
-    # 0.0001 단위 배수 확인 (부동소수점 오차 허용)
-    assert math.isclose(res.unit_size * 10000, round(res.unit_size * 10000), abs_tol=1e-6)
+    # 주식 기본값(min_unit=1.0)이었다면 unit_size는 항상 정수(math.floor 결과)다.
+    # 이 assertion은 market=="CRYPTO" 라우팅이 실제로 cfg.filters_crypto.min_unit(0.0001)을
+    # 적용했는지 구분한다 -- 라우팅이 빠지면(min_unit=1.0으로 폴백) unit_size가 정수가 되어 실패한다.
+    assert abs(res.unit_size - round(res.unit_size)) > 1e-6, (
+        f"unit_size={res.unit_size} is integer-valued; crypto min_unit routing may not be applied"
+    )
