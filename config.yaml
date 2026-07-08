@@ -18,11 +18,15 @@ filters_stocks:
   exclude_spac: true
   exclude_recent_split: true
 
+filters_crypto:
+  tickers: ["KRW-BTC", "KRW-ETH", "KRW-XRP"]
+  min_unit: 0.0001
+
 approaching_pct: 0.98
 
 assets:
   stocks: true
   etf: false
-  crypto: false
+  crypto: true
 
 telegram_chat_id: "-5212469241"

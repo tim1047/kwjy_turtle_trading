@@ -30,9 +30,16 @@ class StockFilterConfig:
 
 
 @dataclass(frozen=True)
+class CryptoFilterConfig:
+    tickers: list[str]
+    min_unit: float
+
+
+@dataclass(frozen=True)
 class Config:
     account: AccountConfig
     filters_stocks: StockFilterConfig
+    filters_crypto: CryptoFilterConfig
     approaching_pct: float
     assets: dict
     telegram_chat_id: str
@@ -44,9 +51,14 @@ def load_config(path: str = "config.yaml") -> Config:
     load_dotenv()
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
+    raw_crypto = raw.get("filters_crypto", {})
     return Config(
         account=AccountConfig(**raw["account"]),
         filters_stocks=StockFilterConfig(**raw["filters_stocks"]),
+        filters_crypto=CryptoFilterConfig(
+            tickers=list(raw_crypto.get("tickers", [])),
+            min_unit=float(raw_crypto.get("min_unit", 1.0)),
+        ),
         approaching_pct=raw["approaching_pct"],
         assets=raw["assets"],
         telegram_chat_id=str(raw["telegram_chat_id"]),
