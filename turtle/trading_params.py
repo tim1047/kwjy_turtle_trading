@@ -33,7 +33,7 @@ def compute_trading_params(
             tradable=False, note="매매 불가 (N=0)",
         )
     risk_budget = account.total_value * account.risk_pct
-    unit_size = math.floor(risk_budget / n)
+    unit_size = math.floor(risk_budget / n / min_unit) * min_unit
     tradable = unit_size >= min_unit
     note = "" if tradable else "매매 불가 (유닛 수량 < 최소 단위)"
     return TradingParams(

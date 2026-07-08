@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from turtle.config import AccountConfig
 from turtle.trading_params import compute_trading_params
 
@@ -61,3 +63,23 @@ def test_floor_vs_round_discriminator():
     # Explicitly verify the values we're testing with
     assert p.unit_size == 666, f"Expected 666, got {p.unit_size}"
     assert round(risk_budget / n) == 667, "round(1_000_000/1500) should be 667"
+
+
+def test_unit_size_supports_fractional_min_unit():
+    # risk_budget = 100_000_000 * 0.01 = 1,000,000
+    # N=100_000_000 (BTC 변동성 가정) -> 1,000,000 / 100_000_000 = 0.01
+    # min_unit=0.0001 -> floor(0.01 / 0.0001) * 0.0001 = floor(100) * 0.0001 = 0.01
+    p = compute_trading_params(
+        entry_trigger=140_000_000, n=100_000_000, account=_acct(), min_unit=0.0001
+    )
+    assert p.unit_size == pytest.approx(0.01)
+    assert p.tradable is True
+
+
+def test_unit_size_below_min_unit_not_tradable_fractional():
+    # N 매우 큼 -> risk_budget/n < min_unit -> floor(...)*min_unit = 0
+    p = compute_trading_params(
+        entry_trigger=140_000_000, n=20_000_000_000, account=_acct(), min_unit=0.0001
+    )
+    assert p.unit_size == pytest.approx(0.0)
+    assert p.tradable is False
