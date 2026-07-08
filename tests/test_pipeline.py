@@ -4,7 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from turtle.config import AccountConfig, StockFilterConfig, Config
+from turtle.config import AccountConfig, StockFilterConfig, CryptoFilterConfig, Config
 from turtle.pipeline import run_stoploss_check, screen_ticker
 from turtle.positions.store import Position
 from turtle.signals import BREAKOUT_TODAY, NEUTRAL
@@ -15,6 +15,7 @@ def _cfg():
         account=AccountConfig(100_000_000, 0.01, 4, 6, 12),
         filters_stocks=StockFilterConfig(300, 1e10, 1e5, 1000, 3e11, 200, 100, 100,
                                          True, True, True),
+        filters_crypto=CryptoFilterConfig(tickers=["KRW-BTC"], min_unit=0.0001),
         approaching_pct=0.98,
         assets={"stocks": True, "etf": True, "crypto": False},
         telegram_chat_id="1",
