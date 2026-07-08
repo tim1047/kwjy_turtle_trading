@@ -303,7 +303,7 @@ def test_upbit_fetcher_paginates_when_full_page(monkeypatch):
             ]
         return [
             {
-                "candle_date_time_utc": "2026-01-01T00:00:00",
+                "candle_date_time_utc": "2025-01-01T00:00:00",
                 "opening_price": 1.0, "high_price": 1.0, "low_price": 1.0,
                 "trade_price": 1.0, "candle_acc_trade_volume": 1.0,
             }
@@ -327,6 +327,25 @@ def test_upbit_fetcher_paginates_when_full_page(monkeypatch):
     monkeypatch.setattr(upbit_mod.time, "sleep", lambda s: None)
 
     fetcher = upbit_mod.UpbitFetcher()
-    fetcher.get_ohlcv("KRW-BTC", "20250101", "20260708")
+    out = fetcher.get_ohlcv("KRW-BTC", "20250101", "20260708")
 
     assert len(calls) == 2  # 첫 페이지 200개(가득 참) -> 두번째 페이지 요청됨
+    # 첫 페이지(200개, base=2026-07-08부터 역순 199일 전까지) + 두번째 페이지(1개, 2025-01-01)
+    # = 201개, 중복/누락 없이 병합되어야 한다.
+    assert len(out) == 201
+    assert out.index.is_unique
+    assert out.index.min() == pd.Timestamp("2025-01-01")
+    assert out.index.max() == pd.Timestamp("2026-07-08")
+    # to 파라미터는 첫 페이지의 가장 오래된 캔들 시각(exclusive 경계)이어야 한다
+    expected_oldest = (pd.Timestamp("2026-07-08") - pd.Timedelta(days=199)).strftime("%Y-%m-%d 00:00:00")
+    assert calls[1]["to"] == expected_oldest
+
+
+def test_normalize_upbit_empty_rows_has_datetime_index():
+    from turtle.data.upbit import normalize_upbit_ohlcv
+    from datetime import datetime
+
+    out = normalize_upbit_ohlcv([], datetime(2026, 7, 7), datetime(2026, 7, 8))
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    assert str(out.index.dtype).startswith("datetime64")
+    assert len(out) == 0

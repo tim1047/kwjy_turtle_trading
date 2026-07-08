@@ -19,7 +19,7 @@ def normalize_upbit_ohlcv(
     오름차순, [start, end] 구간으로 필터링."""
     cols = ["open", "high", "low", "close", "volume"]
     if not rows:
-        return pd.DataFrame(columns=cols).astype(float)
+        return pd.DataFrame(columns=cols, index=pd.DatetimeIndex([], name="날짜")).astype(float)
     df = pd.DataFrame(rows)
     df["날짜"] = pd.to_datetime(df["candle_date_time_utc"].str[:10])
     df = df.rename(
