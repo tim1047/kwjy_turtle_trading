@@ -2,15 +2,14 @@ import argparse
 import logging
 from datetime import datetime
 
-# pykrx authenticates against data.krx.co.kr (KRX_ID/KRX_PW env vars) at
-# import time (see pykrx.website.comm.webio module-level session init), so
-# .env must be loaded before any project import that pulls in pykrx.
+# pykrx 인증은 turtle/main.py 기존 주석 그대로 유지
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from turtle.config import load_config
 from turtle.data.krx import KrxFetcher
+from turtle.data.upbit import UpbitFetcher
 from turtle.pipeline import run, run_stoploss_check
 
 
@@ -29,12 +28,17 @@ def main():
         datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else None
     )
     cfg = load_config()
-    fetcher = KrxFetcher()
+    krx_fetcher = KrxFetcher()
+    fetchers = {
+        "STOCK": krx_fetcher,
+        "ETF": krx_fetcher,
+        "CRYPTO": UpbitFetcher(),
+    }
 
-    stoploss_text = run_stoploss_check(target, cfg, fetcher, send=not args.no_send)
+    stoploss_text = run_stoploss_check(target, cfg, fetchers, send=not args.no_send)
     print(stoploss_text)
 
-    scan_text = run(target, cfg, fetcher, send=not args.no_send)
+    scan_text = run(target, cfg, fetchers, send=not args.no_send)
     print(scan_text)
 
 
