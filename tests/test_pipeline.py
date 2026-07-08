@@ -94,6 +94,18 @@ def _stop_check_df() -> pd.DataFrame:
     )
 
 
+def _crypto_stop_check_df() -> pd.DataFrame:
+    lows = [x * 10000 for x in [9500, 9400, 9300, 9200, 9100, 9050, 9000, 9600, 9700, 9800, 9900]]
+    idx = pd.date_range("2026-06-01", periods=len(lows), freq="D")
+    return pd.DataFrame(
+        {
+            "open": lows, "high": [x + 100 for x in lows],
+            "low": lows, "close": lows, "volume": [1000] * len(lows),
+        },
+        index=idx,
+    )
+
+
 def test_run_stoploss_check_reports_open_positions():
     cfg = _cfg()
     fetchers = {"STOCK": _FakeStopFetcher(_stop_check_df()), "CRYPTO": _FakeStopFetcher(_stop_check_df())}
@@ -127,8 +139,8 @@ def test_run_stoploss_check_survives_db_failure():
 
 def test_run_stoploss_check_routes_crypto_position_to_crypto_fetcher():
     cfg = _cfg()
-    stock_fetcher = _FakeStopFetcher(_stop_check_df())
-    crypto_fetcher = _FakeStopFetcher(_stop_check_df())
+    stock_fetcher = _FakeStopFetcher(_stop_check_df())          # 마지막 종가 9,900
+    crypto_fetcher = _FakeStopFetcher(_crypto_stop_check_df())  # 마지막 종가 99,000,000
     fetchers = {"STOCK": stock_fetcher, "CRYPTO": crypto_fetcher}
     position = Position(
         ticker="KRW-BTC", name="KRW-BTC", market="CRYPTO",
@@ -139,6 +151,10 @@ def test_run_stoploss_check_routes_crypto_position_to_crypto_fetcher():
         text = run_stoploss_check(None, cfg, fetchers, send=False)
 
     assert "KRW-BTC" in text
+    # crypto_fetcher 고유값(99,000,000)이 나와야 실제로 fetchers["CRYPTO"]가 쓰였다는 증거가 된다.
+    # stock_fetcher를 잘못 썼다면 9,900이 나왔을 것이므로 그 값의 부재도 함께 확인한다.
+    assert "99,000,000" in text
+    assert "9,900" not in text
 
 
 def test_run_includes_crypto_when_enabled(monkeypatch):
@@ -173,3 +189,41 @@ def test_screen_ticker_crypto_uses_fractional_min_unit():
     assert abs(res.unit_size - round(res.unit_size)) > 1e-6, (
         f"unit_size={res.unit_size} is integer-valued; crypto min_unit routing may not be applied"
     )
+
+
+class _RecordingFetcher:
+    def __init__(self, df):
+        self._df = df
+        self.calls = []
+
+    def get_ohlcv(self, ticker, start, end):
+        self.calls.append((ticker, start, end))
+        return self._df
+
+
+def test_run_stoploss_check_crypto_uses_today_not_resolved_target():
+    cfg = _cfg()
+    stock_fetcher = _RecordingFetcher(_stop_check_df())
+    crypto_fetcher = _RecordingFetcher(_crypto_stop_check_df())
+    fetchers = {"STOCK": stock_fetcher, "CRYPTO": crypto_fetcher}
+    stock_position = Position(
+        ticker="005930", name="삼성전자", market="STOCK",
+        entry_price=10000.0, n=500.0, entry_date="2026-06-01",
+    )
+    crypto_position = Position(
+        ticker="KRW-BTC", name="KRW-BTC", market="CRYPTO",
+        entry_price=100_000_000.0, n=2_000_000.0, entry_date="2026-06-01",
+    )
+    with patch("turtle.pipeline.get_open_positions", return_value=[stock_position, crypto_position]), \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        run_stoploss_check(None, cfg, fetchers, send=False)
+
+    assert len(stock_fetcher.calls) == 1
+    assert len(crypto_fetcher.calls) == 1
+    _, _, stock_end = stock_fetcher.calls[0]
+    _, _, crypto_end = crypto_fetcher.calls[0]
+
+    # STOCK 경로는 get_business_days가 patch된 2026-07-07 기준으로 resolve된다.
+    assert stock_end == "20260707"
+    # CRYPTO 경로는 get_business_days patch와 무관하게 테스트 실행 시점의 실제 오늘 날짜를 써야 한다.
+    assert crypto_end == date.today().strftime("%Y%m%d")
