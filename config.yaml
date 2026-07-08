@@ -19,7 +19,7 @@ filters_stocks:
   exclude_recent_split: true
 
 filters_crypto:
-  tickers: ["KRW-BTC", "KRW-ETH", "KRW-XRP"]
+  tickers: ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-TRX", "KRW-SOL", "KRW-LINK", "KRW-ONDO", "KRW-UNI"]
   min_unit: 0.0001
 
 approaching_pct: 0.98
