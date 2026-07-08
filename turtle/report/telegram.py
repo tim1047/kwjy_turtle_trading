@@ -28,6 +28,13 @@ def _fmt_won(v: float) -> str:
     return f"{v:,.0f}"
 
 
+def _fmt_qty(v: float, market: str) -> str:
+    if market == "CRYPTO":
+        s = f"{v:.8f}".rstrip("0").rstrip(".")
+        return s if s else "0"
+    return f"{v:,.0f}"
+
+
 def _fmt_adx(v: float) -> str:
     return "-" if v != v else f"{v:.1f}"
 
@@ -40,11 +47,12 @@ def _breakout_card(r) -> str:
         f"🔹 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code> · "
         f"{_STATUS_LABEL.get(r.status, _esc(r.status))}"
     )
+    unit_label = "개" if r.market == "CRYPTO" else "주"
     body = (
         f"   종가 {_fmt_won(r.close)} → 트리거 {_fmt_won(r.entry_trigger)} "
         f"(N {_fmt_won(r.n)} · ADX {_fmt_adx(r.adx)})\n"
         f"   손절 {_fmt_won(r.stop_loss_price)} · "
-        f"1유닛 {_fmt_won(r.unit_size)}주 ({_fmt_won(r.unit_notional)}원)"
+        f"1유닛 {_fmt_qty(r.unit_size, r.market)}{unit_label} ({_fmt_won(r.unit_notional)}원)"
     )
     card = f"{header}\n{body}"
     if not r.tradable:
@@ -67,7 +75,8 @@ def format_report(target: str, results: list, universe_counts: dict) -> str:
     lines = [f"📊 <b>터틀 스크리닝 리포트</b> — {_esc(target)}", ""]
     lines.append(
         f"유니버스: 주식 {universe_counts.get('stocks', 0)}개 / "
-        f"ETF {universe_counts.get('etf', 0)}개"
+        f"ETF {universe_counts.get('etf', 0)}개 / "
+        f"코인 {universe_counts.get('crypto', 0)}개"
     )
     lines.append(f"매수 신호: {len(breakouts)}종목 / 관찰: {len(approaching)}종목")
     lines.append("")

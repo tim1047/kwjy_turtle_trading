@@ -93,3 +93,31 @@ def test_report_approaching_shows_adx_value():
     )
     assert "ADX" in text
     assert "28.0" in text
+
+
+def test_report_shows_crypto_universe_count():
+    text = format_report(
+        "2026-07-06",
+        [],
+        {"stocks": 120, "etf": 30, "crypto": 3},
+    )
+    assert "코인 3개" in text
+
+
+def test_report_crypto_card_shows_fractional_quantity():
+    text = format_report(
+        "2026-07-06",
+        [_r(market="CRYPTO", ticker="KRW-BTC", name="KRW-BTC", unit_size=0.0012, unit_notional=168000)],
+        {"stocks": 0, "etf": 0, "crypto": 1},
+    )
+    assert "0.0012" in text
+    assert "개" in text
+
+
+def test_report_stock_card_still_shows_share_count():
+    text = format_report(
+        "2026-07-06",
+        [_r()],  # market="KOSPI", unit_size=666 (기존 fixture)
+        {"stocks": 1, "etf": 0},
+    )
+    assert "666주" in text
