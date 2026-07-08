@@ -62,6 +62,7 @@ def screen_ticker(ticker: str, name: str, market: str, df, cfg: Config) -> Scree
         gap_pct=gap_pct,
         tradable=params.tradable,
         note=params.note,
+        adx=ind.adx_14,
     )
 
 

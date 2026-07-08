@@ -62,6 +62,9 @@ def test_screen_ticker_detects_breakout():
     # 트레이딩 파라미터가 결합되어 있어야 한다
     assert res.stop_loss_price < res.entry_trigger
     assert res.unit_size >= 0
+    # ADX가 indicators.adx()로부터 채워져야 한다
+    assert res.adx == res.adx  # NaN 아님 (70일치 데이터로 충분)
+    assert res.adx > 0
 
 
 def test_screen_ticker_neutral_when_no_breakout():
