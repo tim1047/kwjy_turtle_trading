@@ -1,9 +1,13 @@
+import argparse
 from dataclasses import dataclass
 from datetime import datetime
 
 import pandas as pd
 
-from turtle.config import AccountConfig
+from turtle.calendar import lookback_start
+from turtle.config import AccountConfig, load_config
+from turtle.data.krx import KrxFetcher
+from turtle.data.upbit import UpbitFetcher
 from turtle.indicators import IndicatorResult, compute_indicators
 from turtle.signals import BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
 from turtle.trading_params import compute_trading_params
@@ -163,3 +167,30 @@ def run_backtest(
             add_pyramid_unit(position, row, day, account, min_unit)
 
     return trades
+
+
+def main() -> None:
+    # backtest_report가 turtle.backtest.Trade를 임포트하므로 (모듈 최상단에서
+    # 서로를 임포트하면 순환 임포트가 발생), main() 내부에서 지연 임포트한다.
+    from turtle.backtest_report import compute_metrics, format_backtest_report
+
+    parser = argparse.ArgumentParser(description="터틀 트레이딩 단일 종목 백테스트")
+    parser.add_argument("--ticker", required=True, help="종목/코인 코드 (예: 005930, KRW-BTC)")
+    parser.add_argument("--market", required=True, choices=["STOCK", "ETF", "CRYPTO"])
+    parser.add_argument("--start", required=True, help="YYYYMMDD")
+    parser.add_argument("--end", required=True, help="YYYYMMDD")
+    args = parser.parse_args()
+
+    cfg = load_config()
+    fetcher = UpbitFetcher() if args.market == "CRYPTO" else KrxFetcher()
+    lookback = lookback_start(args.start, days=520)
+    df = fetcher.get_ohlcv(args.ticker, lookback, args.end)
+    min_unit = cfg.filters_crypto.min_unit if args.market == "CRYPTO" else 1.0
+
+    trades = run_backtest(df, args.start, args.end, cfg.account, min_unit, cfg.approaching_pct)
+    metrics = compute_metrics(trades, cfg.account.total_value, args.start, args.end)
+    print(format_backtest_report(args.ticker, args.start, args.end, trades, metrics))
+
+
+if __name__ == "__main__":
+    main()
