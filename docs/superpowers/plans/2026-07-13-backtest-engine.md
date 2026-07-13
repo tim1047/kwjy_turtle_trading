@@ -526,11 +526,19 @@ from turtle.indicators import compute_indicators
 def _flat_then_breakout_df(breakout_idx: int, n: int, post_breakout_closes: dict):
     """기본 흐름은 high=101/low=99/close=100 평평한 흐름. breakout_idx일에 high를
     트리거(101) 위로 살짝 올리고, post_breakout_closes={offset: close}로 이후
-    일자의 종가를 덮어쓴다 (high=close+1, low=close-1 패턴 유지)."""
+    일자의 종가를 덮어쓴다 (high=close+1, low=close-1 패턴 유지).
+
+    row 200(테스트의 start_idx)부터 breakout_idx 직전까지는 high를 100.9로 살짝
+    눌러둔다 — 그렇지 않으면 트레일링 high_55도 101.0이라 오늘 high(101.0)가
+    `>=` 비교로 그 값과 정확히 같아져, 평가되는 첫날(row200)부터 스퓨리어스
+    돌파가 발생한다. row 200 이전(0~199) 구간은 101.0을 유지해 트레일링
+    55일 윈도우 안에서 저항선(high_55=101.0) 역할을 하도록 남겨둔다."""
     idx = pd.bdate_range("2020-01-01", periods=n)
     highs = [101.0] * n
     lows = [99.0] * n
     closes = [100.0] * n
+    for i in range(200, breakout_idx):
+        highs[i] = 100.9
     highs[breakout_idx] = 101.5
     for offset, close in post_breakout_closes.items():
         i = breakout_idx + offset
