@@ -132,10 +132,10 @@ def run(target: date | None, cfg: Config, fetchers: dict, send: bool = True) -> 
         stock_fetcher = CachingFetcher(fetchers["STOCK"])
         tickers = build_stock_universe(target_str, cfg.filters_stocks, stock_fetcher, lookback)
         counts["stocks"] = len(tickers)
-        for t in tickers:
+        for t, mkt in tickers:
             try:
                 df = stock_fetcher.get_ohlcv(t, lookback, target_str)
-                results.append(screen_ticker(t, _stock_name(t), "STOCK", df, cfg))
+                results.append(screen_ticker(t, _stock_name(t), mkt, df, cfg))
             except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
                 log.warning("스크리닝 실패 %s: %s", t, exc)
 

@@ -49,7 +49,7 @@ _STATUS_LABEL = {BREAKOUT_TODAY: "당일돌파", BREAKOUT_CLOSE: "종가돌파"}
 
 def _breakout_card(r) -> str:
     header = (
-        f"🔹 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code> · "
+        f"🔹 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code> · {_esc(r.market)} · "
         f"{_STATUS_LABEL.get(r.status, _esc(r.status))}"
     )
     unit_label = "개" if r.market == "CRYPTO" else "주"
@@ -72,7 +72,7 @@ def _breakout_card(r) -> str:
 
 def _approaching_card(r) -> str:
     return (
-        f"🔸 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code>\n"
+        f"🔸 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code> · {_esc(r.market)}\n"
         f"   종가 {_fmt_won(r.close)} → 트리거 {_fmt_won(r.entry_trigger)} · "
         f"이격 {r.gap_pct:.2f}% · ADX {_fmt_adx(r.adx)}"
     )

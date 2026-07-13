@@ -135,9 +135,11 @@ def _flagged_tickers(target: str, market: str) -> set:
 
 def build_stock_universe(
     target: str, cfg: StockFilterConfig, fetcher, lookback: str
-) -> list:
+) -> list[tuple[str, str]]:
     """KOSPI/KOSDAQ 시가총액 상위 N 종목에 필터를 적용해 유니버스를 만든다 (I/O).
 
+    반환: (ticker, market) 튜플 리스트. market은 "KOSPI"/"KOSDAQ" — 리포트에서
+    종목이 어느 시장 소속인지 표시하는 데 쓰인다.
     종목 단위 실패는 전체 배치를 막지 않도록 개별적으로 격리한다.
     """
     try:
@@ -163,7 +165,7 @@ def build_stock_universe(
                     ticker, target, lookback, market, float(row["시가총액"]), fetcher
                 )
                 if passes_stock_filters(m, cfg):
-                    result.append(m.ticker)
+                    result.append((m.ticker, market))
                     log.info("universe IN  %s %s", m.ticker, m.name)
                 else:
                     log.info("universe OUT %s %s", m.ticker, m.name)

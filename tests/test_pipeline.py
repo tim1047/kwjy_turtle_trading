@@ -90,7 +90,9 @@ def test_run_enriches_breakout_with_investor_net_buy_days(monkeypatch):
     )
     from turtle import pipeline as pipeline_mod
 
-    monkeypatch.setattr(pipeline_mod, "build_stock_universe", lambda *a, **k: ["005930"])
+    monkeypatch.setattr(
+        pipeline_mod, "build_stock_universe", lambda *a, **k: [("005930", "KOSPI")]
+    )
     monkeypatch.setattr(pipeline_mod, "_stock_name", lambda t: "삼성전자")
     monkeypatch.setattr(pipeline_mod, "get_business_days", lambda *a, **k: [date(2026, 7, 7)])
 
@@ -106,6 +108,7 @@ def test_run_enriches_breakout_with_investor_net_buy_days(monkeypatch):
     text = run(date(2026, 7, 7), cfg, fetchers, send=False)
 
     assert calls and calls[0][0] == "005930"
+    assert "KOSPI" in text
     assert "외국인 순매수 (2주간 7일)" in text
     assert "기관 순매수 (2주간 3일)" in text
 

@@ -156,3 +156,21 @@ def test_report_omits_investor_lines_when_absent():
         {"stocks": 120, "etf": 30},
     )
     assert "순매수" not in text
+
+
+def test_report_breakout_card_shows_market_label():
+    text = format_report(
+        "2026-07-06",
+        [_r(market="KOSDAQ")],
+        {"stocks": 120, "etf": 30},
+    )
+    assert "KOSDAQ" in text
+
+
+def test_report_approaching_card_shows_market_label():
+    text = format_report(
+        "2026-07-06",
+        [_r(status=APPROACHING, name="근접주", gap_pct=1.2, market="KOSDAQ")],
+        {"stocks": 120, "etf": 30},
+    )
+    assert "KOSDAQ" in text

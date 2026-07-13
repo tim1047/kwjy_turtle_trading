@@ -159,7 +159,7 @@ def test_build_stock_universe_filters_and_isolates_ticker_failure(monkeypatch):
 
     result = krx_stocks.build_stock_universe("20260703", cfg, fetcher, "20250601")
 
-    assert result == ["AAAAAA"]
+    assert result == [("AAAAAA", "KOSPI")]
 
 
 def test_build_stock_universe_excludes_etf_tickers_mixed_into_cap_ranking(monkeypatch):
@@ -187,7 +187,7 @@ def test_build_stock_universe_excludes_etf_tickers_mixed_into_cap_ranking(monkey
 
     result = krx_stocks.build_stock_universe("20260703", cfg, fetcher, "20250601")
 
-    assert result == ["AAAAAA"]
+    assert result == [("AAAAAA", "KOSPI")]
     assert ("069500", "20250601", "20260703") not in fetcher.calls
 
 
@@ -210,7 +210,7 @@ def test_build_stock_universe_isolates_market_level_failure(monkeypatch):
 
     result = krx_stocks.build_stock_universe("20260703", cfg, fetcher, "20250601")
 
-    assert result == ["DDDDDD"]
+    assert result == [("DDDDDD", "KOSDAQ")]
 
 
 # --- I/O wiring tests: turtle.universe.krx_etf ------------------------------
