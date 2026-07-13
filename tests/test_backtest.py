@@ -4,6 +4,7 @@ import pytest
 from turtle.backtest import Unit, OpenPosition, Trade, close_position, enter_position, add_pyramid_unit
 from turtle.config import AccountConfig
 from turtle.indicators import IndicatorResult
+from turtle.trading_params import compute_trading_params
 
 
 def test_close_position_single_unit():
@@ -195,3 +196,82 @@ def test_check_exit_breach_both():
     trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
     assert trade is not None
     assert trade.exit_reason == "2N+10D"
+
+
+from turtle.backtest import run_backtest
+from turtle.indicators import compute_indicators
+
+
+def _flat_then_breakout_df(breakout_idx: int, n: int, post_breakout_closes: dict):
+    """기본 흐름은 high=101/low=99/close=100 평평한 흐름. breakout_idx일에 high를
+    트리거(101) 위로 살짝 올리고, post_breakout_closes={offset: close}로 이후
+    일자의 종가를 덮어쓴다 (high=close+1, low=close-1 패턴 유지).
+
+    row 200(테스트의 start_idx)부터 breakout_idx 직전까지는 high를 100.9로 살짝
+    눌러둔다 — 그렇지 않으면 트레일링 high_55도 101.0이라 오늘 high(101.0)가
+    `>=` 비교로 그 값과 정확히 같아져, 평가되는 첫날(row200)부터 스퓨리어스
+    돌파가 발생한다. row 200 이전(0~199) 구간은 101.0을 유지해 트레일링
+    55일 윈도우 안에서 저항선(high_55=101.0) 역할을 하도록 남겨둔다."""
+    idx = pd.bdate_range("2020-01-01", periods=n)
+    highs = [101.0] * n
+    lows = [99.0] * n
+    closes = [100.0] * n
+    for i in range(200, breakout_idx):
+        highs[i] = 100.9
+    highs[breakout_idx] = 101.5
+    for offset, close in post_breakout_closes.items():
+        i = breakout_idx + offset
+        closes[i] = close
+        highs[i] = close + 1.0
+        lows[i] = close - 1.0
+    return pd.DataFrame(
+        {"open": closes, "high": highs, "low": lows, "close": closes, "volume": [1_000_000.0] * n},
+        index=idx,
+    )
+
+
+def test_run_backtest_entry_pyramid_and_exit():
+    n = 230
+    breakout_idx = 205  # sma_200 워밍업(200일) 이후, 여유 있게
+    df = _flat_then_breakout_df(
+        breakout_idx, n,
+        post_breakout_closes={1: 103.0, 2: 80.0},  # 1일 후 피라미드 추가, 2일 후 급락 청산
+    )
+    start = df.index[200].strftime("%Y%m%d")
+    end = df.index[breakout_idx + 3].strftime("%Y%m%d")
+
+    trades = run_backtest(df, start, end, _acct(), min_unit=1.0, approaching_pct=0.98)
+
+    assert len(trades) == 1
+    trade = trades[0]
+
+    # 오라클: 이미 단위 테스트로 검증된 compute_indicators/compute_trading_params를
+    # 그대로 호출해 기대값을 계산 (run_backtest도 내부적으로 동일 함수를 호출함)
+    entry_ind = compute_indicators(df.iloc[: breakout_idx + 1])
+    entry_params = compute_trading_params(entry_ind.high_55, entry_ind.atr_20, _acct(), 1.0)
+    expected_pyramid_1 = entry_params.pyramid_1_price
+    assert expected_pyramid_1 < 103.0  # offset=1의 종가(103.0)가 피라미드 레벨을 넘긴다는 전제 검증
+
+    assert trade.entry_date == df.index[breakout_idx].strftime("%Y-%m-%d")
+    assert trade.exit_date == df.index[breakout_idx + 2].strftime("%Y-%m-%d")
+    assert trade.units == 2
+    assert trade.exit_reason == "2N+10D"
+    assert trade.exit_price == 80.0
+
+    expected_avg = (entry_ind.high_55 + expected_pyramid_1) / 2
+    expected_size = 2 * entry_params.unit_size
+    assert trade.entry_price == pytest.approx(expected_avg)
+    assert trade.size == pytest.approx(expected_size)
+    assert trade.pnl == pytest.approx((80.0 - expected_avg) * expected_size)
+
+
+def test_run_backtest_raises_when_warmup_insufficient():
+    n = 50  # 200일 미달
+    idx = pd.bdate_range("2020-01-01", periods=n)
+    df = pd.DataFrame(
+        {"open": [100.0] * n, "high": [101.0] * n, "low": [99.0] * n,
+         "close": [100.0] * n, "volume": [1000.0] * n},
+        index=idx,
+    )
+    with pytest.raises(ValueError, match="워밍업"):
+        run_backtest(df, df.index[40].strftime("%Y%m%d"), df.index[45].strftime("%Y%m%d"), _acct())

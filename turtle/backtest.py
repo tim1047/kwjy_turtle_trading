@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 import pandas as pd
 
 from turtle.config import AccountConfig
-from turtle.indicators import IndicatorResult
+from turtle.indicators import IndicatorResult, compute_indicators
 from turtle.signals import BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
 from turtle.trading_params import compute_trading_params
 
@@ -119,3 +120,46 @@ def check_exit(
     else:
         reason = "10D"
     return close_position(position, day, close, reason)
+
+
+def run_backtest(
+    df: pd.DataFrame,
+    start: str,
+    end: str,
+    account: AccountConfig,
+    min_unit: float = 1.0,
+    approaching_pct: float = 0.98,
+) -> list[Trade]:
+    df = df.sort_index()
+    start_dt = pd.Timestamp(datetime.strptime(start, "%Y%m%d"))
+    end_dt = pd.Timestamp(datetime.strptime(end, "%Y%m%d"))
+    start_idx = int(df.index.searchsorted(start_dt, side="left"))
+    if start_idx >= len(df) or df.index[start_idx] > end_dt:
+        raise ValueError(f"{start}~{end} 구간에 데이터가 없음")
+
+    warmup_ind = compute_indicators(df.iloc[: start_idx + 1])
+    if warmup_ind.sma_200 != warmup_ind.sma_200:  # NaN
+        raise ValueError("워밍업 데이터 부족 (SMA200 계산에 최소 200거래일 필요)")
+
+    trades: list[Trade] = []
+    position: OpenPosition | None = None
+
+    for i in range(start_idx, len(df)):
+        day = df.index[i]
+        if day > end_dt:
+            break
+        row = df.iloc[i]
+        ind = compute_indicators(df.iloc[: i + 1])
+
+        if position is not None:
+            trade = check_exit(position, row, ind, day)
+            if trade is not None:
+                trades.append(trade)
+                position = None
+
+        if position is None:
+            position = enter_position(row, ind, day, account, min_unit, approaching_pct)
+        else:
+            add_pyramid_unit(position, row, day, account, min_unit)
+
+    return trades
