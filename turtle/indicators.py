@@ -84,3 +84,8 @@ def compute_indicators(df: pd.DataFrame) -> IndicatorResult:
         avg_turnover_20=float(turnover.iloc[-20:].mean()),
         sma_200=float(df["close"].rolling(200).mean().iloc[-1]),
     )
+
+
+def chandelier_level(ind: IndicatorResult) -> float:
+    """Chandelier Exit 후보값 (ratchet 전, 당일 기준 22일 고가 - 3*ATR)."""
+    return ind.high_22 - 3 * ind.atr_20

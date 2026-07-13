@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from turtle.indicators import compute_indicators, rolling_low
+from turtle.indicators import chandelier_level, compute_indicators, rolling_low
 from turtle.positions.store import Position
 
 import pandas as pd
@@ -29,7 +29,7 @@ def check_position(position: Position, df: pd.DataFrame) -> StopCheckResult:
     stop_10d = float(rolling_low(df["low"], 10).iloc[-1])
     stop_2n = position.entry_price - 2 * position.n
     ind = compute_indicators(df)
-    candidate_chandelier = ind.high_22 - 3 * ind.atr_20
+    candidate_chandelier = chandelier_level(ind)
     if position.chandelier_stop is None:
         stop_chandelier = candidate_chandelier
     else:

@@ -8,6 +8,8 @@ from turtle.indicators import (
     rolling_high,
     rolling_low,
     compute_indicators,
+    chandelier_level,
+    IndicatorResult,
 )
 
 
@@ -75,3 +77,12 @@ def test_compute_indicators_returns_latest_values():
     assert res.low_20 == pytest.approx(min(lows[-21:-1]))
     assert res.atr_20 > 0
     assert res.high_22 == pytest.approx(max(highs[-23:-1]))
+
+
+def test_chandelier_level_formula():
+    ind = IndicatorResult(
+        close=100.0, high_55=110.0, low_20=90.0, high_20=105.0, high_22=108.0,
+        low_10=95.0, tr=2.0, atr_20=3.0, adx_14=25.0, avg_volume_20=1000.0,
+        avg_turnover_20=100000.0, sma_200=95.0,
+    )
+    assert chandelier_level(ind) == pytest.approx(108.0 - 3 * 3.0)

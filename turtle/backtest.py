@@ -8,7 +8,7 @@ from turtle.calendar import lookback_start
 from turtle.config import AccountConfig, load_config
 from turtle.data.krx import KrxFetcher
 from turtle.data.upbit import UpbitFetcher
-from turtle.indicators import IndicatorResult, compute_indicators
+from turtle.indicators import IndicatorResult, chandelier_level, compute_indicators
 from turtle.signals import BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
 from turtle.trading_params import compute_trading_params
 
@@ -86,7 +86,7 @@ def enter_position(
     unit = Unit(entry_price=ind.high_55, size=params.unit_size, entry_date=day.strftime("%Y-%m-%d"))
     return OpenPosition(
         units=[unit], n=ind.atr_20, stop_price=params.stop_loss_price,
-        chandelier_stop=ind.high_22 - 3 * ind.atr_20,
+        chandelier_stop=chandelier_level(ind),
     )
 
 
@@ -163,7 +163,7 @@ def run_backtest(
         ind = compute_indicators(df.iloc[: i + 1])
 
         if position is not None:
-            position.chandelier_stop = max(position.chandelier_stop, ind.high_22 - 3 * ind.atr_20)
+            position.chandelier_stop = max(position.chandelier_stop, chandelier_level(ind))
             trade = check_exit(position, row, ind, day)
             if trade is not None:
                 trades.append(trade)
