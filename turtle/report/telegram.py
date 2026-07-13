@@ -38,6 +38,10 @@ def _fmt_adx(v: float) -> str:
     return "-" if v != v else f"{v:.1f}"
 
 
+def _fmt_won_nan(v: float) -> str:
+    return "-" if v != v else _fmt_won(v)
+
+
 _STATUS_LABEL = {BREAKOUT_TODAY: "당일돌파", BREAKOUT_CLOSE: "종가돌파"}
 
 
@@ -111,10 +115,12 @@ def format_stoploss_report(target: str, results: list) -> str:
             flags.append("2N 이탈")
         if r.breach_10d:
             flags.append("10일저가 이탈")
+        if r.breach_chandelier:
+            flags.append("Chandelier 이탈")
         card = (
             f"🔹 <b>{_esc(r.name)}</b> <code>{_esc(r.ticker)}</code>\n"
             f"   진입가 {_fmt_won(r.entry_price)} · 종가 {_fmt_won(r.close)} · 2N손절 {_fmt_won(r.stop_2n)} · "
-            f"10일저가 {_fmt_won(r.stop_10d)}"
+            f"10일저가 {_fmt_won(r.stop_10d)} · Chandelier {_fmt_won_nan(r.stop_chandelier)}"
         )
         if flags:
             card += f"\n   ⚠️ <b>{' / '.join(flags)}</b>"

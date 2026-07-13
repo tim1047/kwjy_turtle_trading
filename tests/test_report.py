@@ -50,20 +50,36 @@ def test_format_stoploss_report_flags_breach():
         StopCheckResult(
             ticker="005930", name="삼성전자", market="STOCK",
             entry_price=10000.0, close=8500.0, stop_2n=9000.0, stop_10d=9000.0,
-            breach_2n=True, breach_10d=True,
+            stop_chandelier=8800.0,
+            breach_2n=True, breach_10d=True, breach_chandelier=False,
         ),
         StopCheckResult(
             ticker="069500", name="KODEX 200", market="ETF",
             entry_price=30000.0, close=32500.0, stop_2n=31000.0, stop_10d=31500.0,
-            breach_2n=False, breach_10d=False,
+            stop_chandelier=33000.0,
+            breach_2n=False, breach_10d=False, breach_chandelier=True,
         ),
     ]
     text = format_stoploss_report("2026-07-07", results)
     assert "삼성전자" in text
     assert "⚠️" in text
-    assert text.count("⚠️") == 1
+    assert text.count("⚠️") == 2  # 첫 종목(2N+10D), 둘째 종목(chandelier)이 각각 1개씩
     assert "8,500" in text
     assert "9,000" in text
+    assert "Chandelier 이탈" in text
+
+
+def test_format_stoploss_report_no_breach_no_warning_icon():
+    results = [
+        StopCheckResult(
+            ticker="069500", name="KODEX 200", market="ETF",
+            entry_price=30000.0, close=32500.0, stop_2n=31000.0, stop_10d=31500.0,
+            stop_chandelier=29000.0,
+            breach_2n=False, breach_10d=False, breach_chandelier=False,
+        ),
+    ]
+    text = format_stoploss_report("2026-07-07", results)
+    assert "⚠️" not in text
 
 
 def test_report_shows_adx_value():
