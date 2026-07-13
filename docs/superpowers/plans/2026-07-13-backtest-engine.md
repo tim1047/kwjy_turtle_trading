@@ -880,7 +880,6 @@ Append to `turtle/backtest.py` (add imports at top, add `main()` + `if __name__`
 ```python
 import argparse
 
-from turtle.backtest_report import compute_metrics, format_backtest_report
 from turtle.calendar import lookback_start
 from turtle.config import load_config
 from turtle.data.krx import KrxFetcher
@@ -888,6 +887,11 @@ from turtle.data.upbit import UpbitFetcher
 
 
 def main() -> None:
+    # backtest_report가 turtle.backtest.Trade를 임포트하므로, 모듈 최상단에서
+    # 서로를 임포트하면 순환 임포트가 발생한다 (구현 중 실측됨) — main() 내부에서
+    # 지연 임포트한다.
+    from turtle.backtest_report import compute_metrics, format_backtest_report
+
     parser = argparse.ArgumentParser(description="터틀 트레이딩 단일 종목 백테스트")
     parser.add_argument("--ticker", required=True, help="종목/코인 코드 (예: 005930, KRW-BTC)")
     parser.add_argument("--market", required=True, choices=["STOCK", "ETF", "CRYPTO"])
