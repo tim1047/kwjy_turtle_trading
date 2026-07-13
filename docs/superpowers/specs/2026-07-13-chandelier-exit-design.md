@@ -87,8 +87,10 @@
   저가엔 충분하지만, Wilder ATR은 주는 데이터 길이에 민감함
   (`atr_wilder`가 첫 `period`개 TR 평균으로 seed) — 30일 조각으로 계산한
   ATR은 진입/스캔 시 쓰는 긴 히스토리 ATR과 다른 값이 나옴. 스탑 체크 경로의
-  lookback을 `days=300`으로 늘려 롱히스토리 ATR에 수렴하게 함 (crypto lookback도
-  동일 적용).
+  lookback을 `days=520`(스캔/진입 경로가 이미 쓰는 값과 동일, `pipeline.py`의
+  다른 `lookback_start` 호출들과 일치)으로 늘려 롱히스토리 ATR에 수렴하게 함
+  (crypto lookback도 동일 적용). 구현 시 300일로는 스캔 경로와 값이 어긋날
+  여지가 있어 520으로 정정.
 
 ### `turtle/report/telegram.py`
 - `format_stoploss_report()`: 기존 "2N 이탈"/"10일저가 이탈" 플래그 옆에
