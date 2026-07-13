@@ -10,6 +10,7 @@ class IndicatorResult:
     high_55: float
     low_20: float
     high_20: float
+    high_22: float
     low_10: float
     tr: float
     atr_20: float
@@ -74,6 +75,7 @@ def compute_indicators(df: pd.DataFrame) -> IndicatorResult:
         high_55=float(rolling_high(df["high"], 55).iloc[-1]),
         low_20=float(rolling_low(df["low"], 20).iloc[-1]),
         high_20=float(rolling_high(df["high"], 20).iloc[-1]),
+        high_22=float(rolling_high(df["high"], 22).iloc[-1]),
         low_10=float(rolling_low(df["low"], 10).iloc[-1]),
         tr=float(tr.iloc[-1]),
         atr_20=float(atr.iloc[-1]),

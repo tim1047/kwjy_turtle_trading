@@ -74,3 +74,4 @@ def test_compute_indicators_returns_latest_values():
     assert res.high_55 == pytest.approx(max(highs[-56:-1]))
     assert res.low_20 == pytest.approx(min(lows[-21:-1]))
     assert res.atr_20 > 0
+    assert res.high_22 == pytest.approx(max(highs[-23:-1]))

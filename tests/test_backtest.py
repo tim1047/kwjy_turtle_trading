@@ -53,8 +53,8 @@ def _acct(max_units=4):
 
 def _ind(**overrides):
     base = dict(
-        close=104.0, high_55=100.0, low_20=80.0, high_20=100.0, low_10=90.0,
-        tr=2.0, atr_20=2.0, adx_14=25.0, avg_volume_20=1000.0,
+        close=104.0, high_55=100.0, low_20=80.0, high_20=100.0, high_22=100.0,
+        low_10=90.0, tr=2.0, atr_20=2.0, adx_14=25.0, avg_volume_20=1000.0,
         avg_turnover_20=100000.0, sma_200=90.0,
     )
     base.update(overrides)
