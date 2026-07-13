@@ -322,21 +322,38 @@ def test_run_backtest_raises_when_warmup_insufficient():
 def test_run_backtest_chandelier_stop_ratchets_up_and_does_not_fall():
     n = 230
     breakout_idx = 205
-    # breakout 직후 며칠간 상승(고점 갱신) 후 하락하지만 chandelier 아래까지는 안 감,
-    # 대신 10D 저가를 깨서 청산 -> 청산 시점에 chandelier_stop이 초기값보다 높아야 함
+    # 진입 후 며칠간 크게 상승시켜 high_22를 갱신(피크)한 뒤, 완만하게 되돌린다.
+    # 되돌림 구간의 변동성 확대로 atr_20이 커지면서, 그날그날 새로 계산한 chandelier
+    # 후보값(high_22 - 3*atr_20)은 종가보다 낮아져 그 자체로는 청산을 유발하지 못한다.
+    # 하지만 ratchet(max)이 피크 시점의 더 높은 후보값을 붙들고 있어야만, 되돌림 당일
+    # 종가가 실제로 그 값 아래로 이탈해 청산이 발생한다 -- max()를 제거하면(매일 후보값을
+    # 그대로 대입하면) 이 날 청산이 발생하지 않아야 하고, 이 테스트는 그 차이를 검증한다.
+    # (2N/10D는 이 시나리오에서 breach되지 않도록 설계했음 -- CHANDELIER 단독 청산.)
     df = _flat_then_breakout_df(
         breakout_idx, n,
-        post_breakout_closes={1: 110.0, 2: 108.0, 3: 106.0, 4: 104.0, 5: 90.0},
+        post_breakout_closes={1: 110.0, 2: 120.0, 3: 130.0, 4: 128.0, 5: 121.0},
     )
     start = df.index[200].strftime("%Y%m%d")
     end = df.index[breakout_idx + 6].strftime("%Y%m%d")
 
-    trades = run_backtest(df, start, end, _acct(), min_unit=1.0, approaching_pct=0.98)
+    # 피라미딩 없이 단일 유닛만 유지해 검증을 단순화한다 (진입가/평단가에 영향 없음)
+    account = AccountConfig(
+        total_value=100_000_000, risk_pct=0.01, max_units_per_asset=1,
+        max_units_correlated=6, max_units_total=12,
+    )
+    trades = run_backtest(df, start, end, account, min_unit=1.0, approaching_pct=0.98)
 
     assert len(trades) == 1
-    entry_ind = compute_indicators(df.iloc[: breakout_idx + 1])
-    initial_chandelier = entry_ind.high_22 - 3 * entry_ind.atr_20
-    # 상승 구간에서 high_22가 갱신됐으므로 청산 시점 chandelier_stop은 진입 시점보다 높아야 함
-    peak_ind = compute_indicators(df.iloc[: breakout_idx + 4 + 1])  # offset=4(종가104) 시점까지
-    peak_chandelier = peak_ind.high_22 - 3 * peak_ind.atr_20
-    assert peak_chandelier > initial_chandelier
+    trade = trades[0]
+
+    # 오라클: ratchet 없이 그날그날 새로 계산한 chandelier 후보값은 실제로 종가보다
+    # 낮다 -- 즉 ratchet이 없었다면 이 날 chandelier 청산은 발생하지 않았을 것이다.
+    exit_day_idx = breakout_idx + 5
+    fresh_ind = compute_indicators(df.iloc[: exit_day_idx + 1])
+    fresh_candidate = fresh_ind.high_22 - 3 * fresh_ind.atr_20
+    exit_close = float(df["close"].iloc[exit_day_idx])
+    assert fresh_candidate < exit_close
+
+    assert trade.exit_date == df.index[exit_day_idx].strftime("%Y-%m-%d")
+    assert trade.exit_reason == "CHANDELIER"
+    assert trade.exit_price == exit_close
