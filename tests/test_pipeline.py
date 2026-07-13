@@ -74,6 +74,70 @@ def test_screen_ticker_neutral_when_no_breakout():
     assert res.gap_pct >= 0
 
 
+def test_run_enriches_breakout_with_investor_net_buy_days(monkeypatch):
+    """매수신호(BREAKOUT) 종목에 한해 get_investor_net_buy_days가 호출되고,
+    결과(외국인/기관 순매수일수)가 리포트에 반영되어야 한다."""
+    cfg = Config(
+        account=AccountConfig(100_000_000, 0.01, 4, 6, 12),
+        filters_stocks=StockFilterConfig(300, 1e10, 1e5, 1000, 3e11, 200, 100, 100,
+                                         True, True, True),
+        filters_crypto=CryptoFilterConfig(tickers=["KRW-BTC"], min_unit=0.0001),
+        approaching_pct=0.98,
+        assets={"stocks": True, "etf": False, "crypto": False},
+        telegram_chat_id="1",
+        telegram_bot_token="t",
+        database_url="postgresql://fake",
+    )
+    from turtle import pipeline as pipeline_mod
+
+    monkeypatch.setattr(pipeline_mod, "build_stock_universe", lambda *a, **k: ["005930"])
+    monkeypatch.setattr(pipeline_mod, "_stock_name", lambda t: "삼성전자")
+    monkeypatch.setattr(pipeline_mod, "get_business_days", lambda *a, **k: [date(2026, 7, 7)])
+
+    calls = []
+
+    def fake_investor(ticker, start, end, window=10):
+        calls.append((ticker, start, end, window))
+        return 7, 3
+
+    monkeypatch.setattr(pipeline_mod, "get_investor_net_buy_days", fake_investor)
+
+    fetchers = {"STOCK": _FakeStopFetcher(_breakout_df())}
+    text = run(date(2026, 7, 7), cfg, fetchers, send=False)
+
+    assert calls and calls[0][0] == "005930"
+    assert "외국인 순매수 (2주간 7일)" in text
+    assert "기관 순매수 (2주간 3일)" in text
+
+
+def test_run_skips_investor_lookup_for_crypto(monkeypatch):
+    cfg = Config(
+        account=AccountConfig(100_000_000, 0.01, 4, 6, 12),
+        filters_stocks=StockFilterConfig(300, 1e10, 1e5, 1000, 3e11, 200, 100, 100,
+                                         True, True, True),
+        filters_crypto=CryptoFilterConfig(tickers=["KRW-BTC"], min_unit=0.0001),
+        approaching_pct=0.98,
+        assets={"stocks": False, "etf": False, "crypto": True},
+        telegram_chat_id="1",
+        telegram_bot_token="t",
+        database_url="postgresql://fake",
+    )
+    from turtle import pipeline as pipeline_mod
+
+    monkeypatch.setattr(pipeline_mod, "get_business_days", lambda *a, **k: [date(2026, 7, 7)])
+
+    def boom(*a, **k):
+        raise AssertionError("CRYPTO 종목은 get_investor_net_buy_days를 호출하면 안 됨")
+
+    monkeypatch.setattr(pipeline_mod, "get_investor_net_buy_days", boom)
+
+    fetchers = {"CRYPTO": _FakeStopFetcher(_breakout_df())}
+    text = run(date(2026, 7, 7), cfg, fetchers, send=False)
+
+    assert "KRW-BTC" in text
+    assert "순매수" not in text
+
+
 class _FakeStopFetcher:
     def __init__(self, df: pd.DataFrame):
         self._df = df

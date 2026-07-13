@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from datetime import date
 
@@ -7,6 +8,7 @@ from pykrx import stock as pykrx_stock
 from turtle.calendar import get_business_days, lookback_start, resolve_target_date
 from turtle.config import Config
 from turtle.data.base import CachingFetcher, with_retry
+from turtle.data.krx import get_investor_net_buy_days
 from turtle.indicators import compute_indicators
 from turtle.positions.store import get_open_positions, update_chandelier_stop
 from turtle.report.telegram import ScreenResult, format_report, format_stoploss_report, send_telegram
@@ -160,6 +162,21 @@ def run(target: date | None, cfg: Config, fetchers: dict, send: bool = True) -> 
                 results.append(screen_ticker(t, t, "CRYPTO", df, cfg))
             except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
                 log.warning("코인 스크리닝 실패 %s: %s", t, exc)
+
+    # 매수 신호 종목에 한해 외국인/기관 수급(최근 10거래일 순매수일수)을 덧붙인다.
+    # CRYPTO는 pykrx(KRX 데이터)로 조회 불가하므로 제외.
+    investor_lookback = lookback_start(target_str, days=30)
+    for i, r in enumerate(results):
+        if r.status in (BREAKOUT_TODAY, BREAKOUT_CLOSE) and r.market != "CRYPTO":
+            try:
+                foreign_days, inst_days = get_investor_net_buy_days(
+                    r.ticker, investor_lookback, target_str
+                )
+                results[i] = dataclasses.replace(
+                    r, foreign_buy_days=foreign_days, inst_buy_days=inst_days
+                )
+            except Exception as exc:  # noqa: BLE001 - 수급 조회 실패가 배치를 막지 않도록
+                log.warning("수급 데이터 조회 실패 %s: %s", r.ticker, exc)
 
     # 리포트에는 신호 있는 종목만 (NEUTRAL 제외)
     signalled = [

@@ -137,3 +137,22 @@ def test_report_stock_card_still_shows_share_count():
         {"stocks": 1, "etf": 0},
     )
     assert "666주" in text
+
+
+def test_report_shows_investor_net_buy_days_when_present():
+    text = format_report(
+        "2026-07-06",
+        [_r(foreign_buy_days=7, inst_buy_days=3)],
+        {"stocks": 120, "etf": 30},
+    )
+    assert "외국인 순매수 (2주간 7일)" in text
+    assert "기관 순매수 (2주간 3일)" in text
+
+
+def test_report_omits_investor_lines_when_absent():
+    text = format_report(
+        "2026-07-06",
+        [_r()],  # foreign_buy_days/inst_buy_days 기본값 None
+        {"stocks": 120, "etf": 30},
+    )
+    assert "순매수" not in text

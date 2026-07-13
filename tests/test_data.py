@@ -150,6 +150,60 @@ def test_krx_fetcher_retries_then_succeeds(monkeypatch):
     assert out["open"].iloc[0] == 1
 
 
+def test_get_investor_net_buy_days_counts_positive_days(monkeypatch):
+    import turtle.data.krx as krx
+
+    idx = pd.date_range("2026-01-05", periods=12, freq="B")
+    raw = pd.DataFrame(
+        {
+            "기관합계": [100, -50, 200, 0, 300, -10, 400, 500, -600, 700, 800, -900],
+            "외국인합계": [-100, 50, -200, 0, 300, 10, -400, 500, 600, 700, -800, 900],
+        },
+        index=idx,
+    )
+    calls = []
+
+    def fake_get_market_trading_value_by_date(start, end, ticker, on):
+        calls.append((start, end, ticker, on))
+        return raw
+
+    monkeypatch.setattr(
+        krx.stock, "get_market_trading_value_by_date", fake_get_market_trading_value_by_date
+    )
+    monkeypatch.setattr(krx.time, "sleep", lambda s: None)
+
+    foreign_days, inst_days = krx.get_investor_net_buy_days(
+        "005930", "20260101", "20260201", window=10
+    )
+
+    assert calls == [("20260101", "20260201", "005930", "순매수")]
+    # tail(10)만 카운트 대상 -> 앞 2행(기관 100/외국인 -100) 제외
+    last10_inst = raw["기관합계"].tail(10)
+    last10_foreign = raw["외국인합계"].tail(10)
+    assert inst_days == int((last10_inst > 0).sum())
+    assert foreign_days == int((last10_foreign > 0).sum())
+
+
+def test_get_investor_net_buy_days_shorter_than_window(monkeypatch):
+    import turtle.data.krx as krx
+
+    idx = pd.date_range("2026-01-05", periods=3, freq="B")
+    raw = pd.DataFrame(
+        {"기관합계": [100, -50, 200], "외국인합계": [-100, 50, 300]}, index=idx
+    )
+    monkeypatch.setattr(
+        krx.stock, "get_market_trading_value_by_date", lambda *a, **k: raw
+    )
+    monkeypatch.setattr(krx.time, "sleep", lambda s: None)
+
+    foreign_days, inst_days = krx.get_investor_net_buy_days(
+        "005930", "20260101", "20260201", window=10
+    )
+
+    assert inst_days == 2
+    assert foreign_days == 2
+
+
 class _CountingFetcher(DataFetcher):
     """(ticker, start, end)별 고유 DataFrame을 반환하며 호출 횟수를 기록하는 페이크."""
 

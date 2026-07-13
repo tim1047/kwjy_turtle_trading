@@ -21,6 +21,8 @@ class ScreenResult:
     tradable: bool
     note: str
     adx: float
+    foreign_buy_days: int | None = None
+    inst_buy_days: int | None = None
 
 
 def _fmt_won(v: float) -> str:
@@ -58,6 +60,11 @@ def _breakout_card(r) -> str:
         f"1유닛 {_fmt_qty(r.unit_size, r.market)}{unit_label} ({_fmt_won(r.unit_notional)}원)"
     )
     card = f"{header}\n{body}"
+    if r.foreign_buy_days is not None and r.inst_buy_days is not None:
+        card += (
+            f"\n   외국인 순매수 (2주간 {r.foreign_buy_days}일)"
+            f"\n   기관 순매수 (2주간 {r.inst_buy_days}일)"
+        )
     if not r.tradable:
         card += f"\n   ⚠️ <i>{_esc(r.note)}</i>"
     return card
