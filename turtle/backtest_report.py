@@ -67,8 +67,9 @@ def format_backtest_report(
     lines = [f"백테스트 리포트 — {ticker} ({start}~{end})", ""]
     lines.append(
         f"거래 {metrics.total_trades}회 · 승률 {metrics.win_rate:.1f}% · "
-        f"Profit Factor {metrics.profit_factor:.2f} · CAGR {metrics.cagr:.1f}% · MDD {metrics.mdd:.1f}%"
+        f"Profit Factor {metrics.profit_factor:.2f} · CAGR(실현) {metrics.cagr:.1f}% · MDD(실현) {metrics.mdd:.1f}%"
     )
+    lines.append("(미실현 손익, 수수료, 슬리피지 미포함)")
     lines.append("")
     if not trades:
         lines.append("거래 없음")
