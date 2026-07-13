@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from turtle.backtest import Unit, OpenPosition, Trade, close_position, enter_position
+from turtle.backtest import Unit, OpenPosition, Trade, close_position, enter_position, add_pyramid_unit
 from turtle.config import AccountConfig
 from turtle.indicators import IndicatorResult
 
@@ -92,3 +92,65 @@ def test_no_entry_when_not_tradable():
     day = pd.Timestamp("2026-01-01")
     position = enter_position(row, ind, day, _acct(), min_unit=1.0, approaching_pct=0.98)
     assert position is None
+
+
+def test_add_pyramid_unit_when_price_reaches_level():
+    position = OpenPosition(
+        units=[Unit(entry_price=100.0, size=10000.0, entry_date="2026-01-01")],
+        n=2.0,
+        stop_price=96.0,
+    )
+    # pyramid_1_price = 100 + 0.5*2 = 101
+    row = pd.Series({"open": 101.0, "high": 102.0, "low": 100.5, "close": 101.0})
+    day = pd.Timestamp("2026-01-02")
+    add_pyramid_unit(position, row, day, _acct(), min_unit=1.0)
+    assert len(position.units) == 2
+    assert position.units[1].entry_price == 101.0
+    assert position.units[1].entry_date == "2026-01-02"
+    assert position.stop_price == 101.0 - 2 * 2.0  # 97.0
+
+
+def test_no_pyramid_when_price_below_level():
+    position = OpenPosition(
+        units=[Unit(entry_price=100.0, size=10000.0, entry_date="2026-01-01")],
+        n=2.0,
+        stop_price=96.0,
+    )
+    row = pd.Series({"open": 100.5, "high": 100.8, "low": 100.0, "close": 100.5})  # < 101
+    day = pd.Timestamp("2026-01-02")
+    add_pyramid_unit(position, row, day, _acct(), min_unit=1.0)
+    assert len(position.units) == 1
+    assert position.stop_price == 96.0
+
+
+def test_no_pyramid_when_max_units_reached():
+    position = OpenPosition(
+        units=[
+            Unit(entry_price=100.0, size=1.0, entry_date="2026-01-01"),
+            Unit(entry_price=101.0, size=1.0, entry_date="2026-01-02"),
+        ],
+        n=2.0,
+        stop_price=97.0,
+    )
+    row = pd.Series({"open": 110.0, "high": 111.0, "low": 109.0, "close": 110.0})
+    day = pd.Timestamp("2026-01-03")
+    add_pyramid_unit(position, row, day, _acct(max_units=2), min_unit=1.0)
+    assert len(position.units) == 2  # max_units_per_asset=2라 추가 안 됨
+    assert position.stop_price == 97.0
+
+
+def test_no_pyramid_when_all_three_levels_used():
+    position = OpenPosition(
+        units=[
+            Unit(entry_price=100.0, size=1.0, entry_date="2026-01-01"),
+            Unit(entry_price=101.0, size=1.0, entry_date="2026-01-02"),
+            Unit(entry_price=102.0, size=1.0, entry_date="2026-01-03"),
+            Unit(entry_price=103.0, size=1.0, entry_date="2026-01-04"),
+        ],
+        n=2.0,
+        stop_price=99.0,
+    )
+    row = pd.Series({"open": 200.0, "high": 201.0, "low": 199.0, "close": 200.0})
+    day = pd.Timestamp("2026-01-05")
+    add_pyramid_unit(position, row, day, _acct(max_units=4), min_unit=1.0)
+    assert len(position.units) == 4  # 이미 4유닛(max) -> 더 추가 안 됨

@@ -79,3 +79,26 @@ def enter_position(
         return None
     unit = Unit(entry_price=ind.high_55, size=params.unit_size, entry_date=day.strftime("%Y-%m-%d"))
     return OpenPosition(units=[unit], n=ind.atr_20, stop_price=params.stop_loss_price)
+
+
+def add_pyramid_unit(
+    position: OpenPosition,
+    row: pd.Series,
+    day: pd.Timestamp,
+    account: AccountConfig,
+    min_unit: float,
+) -> None:
+    if len(position.units) >= account.max_units_per_asset:
+        return
+    first_entry = position.units[0].entry_price
+    params = compute_trading_params(first_entry, position.n, account, min_unit)
+    levels = [params.pyramid_1_price, params.pyramid_2_price, params.pyramid_3_price]
+    idx = len(position.units) - 1
+    if idx >= len(levels):
+        return
+    level = levels[idx]
+    if float(row["close"]) >= level:
+        position.units.append(
+            Unit(entry_price=level, size=params.unit_size, entry_date=day.strftime("%Y-%m-%d"))
+        )
+        position.stop_price = level - 2 * position.n
