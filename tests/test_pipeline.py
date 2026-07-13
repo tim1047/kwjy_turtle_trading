@@ -251,3 +251,38 @@ def test_run_stoploss_check_crypto_uses_today_not_resolved_target():
     assert stock_end == "20260707"
     # CRYPTO 경로는 get_business_days patch와 무관하게 테스트 실행 시점의 실제 오늘 날짜를 써야 한다.
     assert crypto_end == date.today().strftime("%Y%m%d")
+
+
+def test_run_stoploss_check_writes_back_chandelier_stop():
+    cfg = _cfg()
+    fetchers = {"STOCK": _FakeStopFetcher(_stop_check_df())}
+    position = Position(
+        ticker="005930", name="삼성전자", market="STOCK",
+        entry_price=10000.0, n=500.0, entry_date="2026-06-01",
+        chandelier_stop=None,
+    )
+    with patch("turtle.pipeline.get_open_positions", return_value=[position]), \
+         patch("turtle.pipeline.update_chandelier_stop") as mock_update, \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        run_stoploss_check(None, cfg, fetchers, send=False)
+
+    mock_update.assert_called_once()
+    call_args = mock_update.call_args[0]
+    assert call_args[0] == cfg.database_url
+    assert call_args[1] == "005930"
+
+
+def test_run_stoploss_check_survives_chandelier_write_failure():
+    cfg = _cfg()
+    fetchers = {"STOCK": _FakeStopFetcher(_stop_check_df())}
+    position = Position(
+        ticker="005930", name="삼성전자", market="STOCK",
+        entry_price=10000.0, n=500.0, entry_date="2026-06-01",
+        chandelier_stop=None,
+    )
+    with patch("turtle.pipeline.get_open_positions", return_value=[position]), \
+         patch("turtle.pipeline.update_chandelier_stop", side_effect=Exception("DB down")), \
+         patch("turtle.pipeline.get_business_days", return_value=[date(2026, 7, 7)]):
+        text = run_stoploss_check(None, cfg, fetchers, send=False)
+
+    assert "삼성전자" in text  # write 실패해도 리포트는 정상 생성

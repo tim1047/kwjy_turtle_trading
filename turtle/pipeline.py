@@ -8,7 +8,7 @@ from turtle.calendar import get_business_days, lookback_start, resolve_target_da
 from turtle.config import Config
 from turtle.data.base import CachingFetcher, with_retry
 from turtle.indicators import compute_indicators
-from turtle.positions.store import get_open_positions
+from turtle.positions.store import get_open_positions, update_chandelier_stop
 from turtle.report.telegram import ScreenResult, format_report, format_stoploss_report, send_telegram
 from turtle.signals import APPROACHING, BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
 from turtle.stoploss import check_position
@@ -178,7 +178,7 @@ def run(target: date | None, cfg: Config, fetchers: dict, send: bool = True) -> 
 def run_stoploss_check(
     target: date | None, cfg: Config, fetchers: dict, send: bool = True
 ) -> str:
-    """보유종목(positions 테이블) 2N/10일저가 손절 체크 (I/O).
+    """보유종목(positions 테이블) 2N/10일저가/Chandelier 손절 체크 (I/O).
 
     positions 테이블엔 status 컬럼이 없다 — 행이 존재 = 보유중으로 취급하며,
     매도된 종목 행 삭제는 사용자가 수동으로 처리한다. fetchers는
@@ -186,9 +186,11 @@ def run_stoploss_check(
     """
     resolved = _resolve_target(target)
     target_str = resolved.strftime("%Y%m%d")
-    lookback = lookback_start(target_str, days=30)  # 10일 저가 계산에 충분한 여유
+    # Chandelier 손절이 쓰는 ATR(Wilder)은 데이터 길이에 민감 -- 진입/스캔 때와
+    # 같은 520일 룩백을 써야 두 경로의 ATR 값이 일치한다.
+    lookback = lookback_start(target_str, days=520)
     crypto_target = date.today().strftime("%Y%m%d")
-    crypto_lookback = lookback_start(crypto_target, days=30)
+    crypto_lookback = lookback_start(crypto_target, days=520)
 
     try:
         positions = get_open_positions(cfg.database_url)
@@ -206,7 +208,12 @@ def run_stoploss_check(
                 df = fetcher.get_ohlcv(p.ticker, crypto_lookback, crypto_target)
             else:
                 df = fetcher.get_ohlcv(p.ticker, lookback, target_str)
-            results.append(check_position(p, df))
+            result = check_position(p, df)
+            results.append(result)
+            try:
+                update_chandelier_stop(cfg.database_url, p.ticker, result.stop_chandelier)
+            except Exception as exc:  # noqa: BLE001 - DB 기록 실패가 리포트 전송을 막지 않도록
+                log.warning("chandelier_stop 저장 실패 %s: %s", p.ticker, exc)
         except Exception as exc:  # noqa: BLE001 - 종목별 실패가 배치를 막지 않도록
             log.warning("손절가 체크 실패 %s: %s", p.ticker, exc)
 
