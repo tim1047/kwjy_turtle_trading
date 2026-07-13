@@ -12,6 +12,7 @@ def test_close_position_single_unit():
         units=[Unit(entry_price=100.0, size=10.0, entry_date="2026-01-01")],
         n=5.0,
         stop_price=90.0,
+        chandelier_stop=-1e18,
     )
     trade = close_position(position, pd.Timestamp("2026-01-10"), 120.0, "2N")
     assert trade.entry_date == "2026-01-01"
@@ -33,6 +34,7 @@ def test_close_position_weighted_avg_multi_unit():
         ],
         n=5.0,
         stop_price=100.0,
+        chandelier_stop=-1e18,
     )
     trade = close_position(position, pd.Timestamp("2026-01-10"), 130.0, "10D")
     # 평단가 = (100*10 + 110*10) / 20 = 105
@@ -78,6 +80,14 @@ def test_enter_position_on_breakout():
     assert position.stop_price == 100.0 - 2 * 2.0  # 96.0
 
 
+def test_enter_position_initializes_chandelier_stop():
+    ind = _ind(high_22=100.0, atr_20=2.0)
+    row = _row(high=105.0, low=99.0, close=104.0)
+    day = pd.Timestamp("2026-01-01")
+    position = enter_position(row, ind, day, _acct(), min_unit=1.0, approaching_pct=0.98)
+    assert position.chandelier_stop == pytest.approx(100.0 - 3 * 2.0)  # 94.0
+
+
 def test_no_entry_when_no_breakout():
     ind = _ind()
     row = _row(high=95.0, low=90.0, close=93.0)  # 트리거 미달
@@ -100,6 +110,7 @@ def test_add_pyramid_unit_when_price_reaches_level():
         units=[Unit(entry_price=100.0, size=10000.0, entry_date="2026-01-01")],
         n=2.0,
         stop_price=96.0,
+        chandelier_stop=-1e18,
     )
     # pyramid_1_price = 100 + 0.5*2 = 101
     row = pd.Series({"open": 101.0, "high": 102.0, "low": 100.5, "close": 101.0})
@@ -116,6 +127,7 @@ def test_no_pyramid_when_price_below_level():
         units=[Unit(entry_price=100.0, size=10000.0, entry_date="2026-01-01")],
         n=2.0,
         stop_price=96.0,
+        chandelier_stop=-1e18,
     )
     row = pd.Series({"open": 100.5, "high": 100.8, "low": 100.0, "close": 100.5})  # < 101
     day = pd.Timestamp("2026-01-02")
@@ -132,6 +144,7 @@ def test_no_pyramid_when_max_units_reached():
         ],
         n=2.0,
         stop_price=97.0,
+        chandelier_stop=-1e18,
     )
     row = pd.Series({"open": 110.0, "high": 111.0, "low": 109.0, "close": 110.0})
     day = pd.Timestamp("2026-01-03")
@@ -150,6 +163,7 @@ def test_no_pyramid_when_all_three_levels_used():
         ],
         n=2.0,
         stop_price=99.0,
+        chandelier_stop=-1e18,
     )
     row = pd.Series({"open": 200.0, "high": 201.0, "low": 199.0, "close": 200.0})
     day = pd.Timestamp("2026-01-05")
@@ -160,7 +174,7 @@ def test_no_pyramid_when_all_three_levels_used():
 def test_check_exit_no_breach():
     from turtle.backtest import check_exit
 
-    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0)
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0, chandelier_stop=-1e18)
     row = pd.Series({"close": 99.0})
     trade = check_exit(position, row, _ind(low_10=95.0), pd.Timestamp("2026-01-05"))
     assert trade is None
@@ -169,7 +183,7 @@ def test_check_exit_no_breach():
 def test_check_exit_breach_2n_only():
     from turtle.backtest import check_exit
 
-    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0)
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0, chandelier_stop=-1e18)
     row = pd.Series({"close": 95.0})  # <= stop_price(96), > low_10(90)
     trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
     assert trade is not None
@@ -181,7 +195,7 @@ def test_check_exit_breach_2n_only():
 def test_check_exit_breach_10d_only():
     from turtle.backtest import check_exit
 
-    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=80.0)
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=80.0, chandelier_stop=-1e18)
     row = pd.Series({"close": 85.0})  # > stop_price(80), <= low_10(90)
     trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
     assert trade is not None
@@ -191,7 +205,7 @@ def test_check_exit_breach_10d_only():
 def test_check_exit_breach_both():
     from turtle.backtest import check_exit
 
-    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0)
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0, chandelier_stop=-1e18)
     row = pd.Series({"close": 80.0})  # <= both
     trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
     assert trade is not None

@@ -25,6 +25,7 @@ class OpenPosition:
     units: list[Unit]
     n: float
     stop_price: float
+    chandelier_stop: float
 
 
 @dataclass(frozen=True)
@@ -83,7 +84,10 @@ def enter_position(
     if not params.tradable:
         return None
     unit = Unit(entry_price=ind.high_55, size=params.unit_size, entry_date=day.strftime("%Y-%m-%d"))
-    return OpenPosition(units=[unit], n=ind.atr_20, stop_price=params.stop_loss_price)
+    return OpenPosition(
+        units=[unit], n=ind.atr_20, stop_price=params.stop_loss_price,
+        chandelier_stop=ind.high_22 - 3 * ind.atr_20,
+    )
 
 
 def add_pyramid_unit(
