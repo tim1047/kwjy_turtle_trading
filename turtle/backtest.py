@@ -102,3 +102,20 @@ def add_pyramid_unit(
             Unit(entry_price=level, size=params.unit_size, entry_date=day.strftime("%Y-%m-%d"))
         )
         position.stop_price = level - 2 * position.n
+
+
+def check_exit(
+    position: OpenPosition, row: pd.Series, ind: IndicatorResult, day: pd.Timestamp
+) -> Trade | None:
+    close = float(row["close"])
+    breach_2n = close <= position.stop_price
+    breach_10d = close <= ind.low_10
+    if not (breach_2n or breach_10d):
+        return None
+    if breach_2n and breach_10d:
+        reason = "2N+10D"
+    elif breach_2n:
+        reason = "2N"
+    else:
+        reason = "10D"
+    return close_position(position, day, close, reason)

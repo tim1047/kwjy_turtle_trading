@@ -154,3 +154,44 @@ def test_no_pyramid_when_all_three_levels_used():
     day = pd.Timestamp("2026-01-05")
     add_pyramid_unit(position, row, day, _acct(max_units=4), min_unit=1.0)
     assert len(position.units) == 4  # 이미 4유닛(max) -> 더 추가 안 됨
+
+
+def test_check_exit_no_breach():
+    from turtle.backtest import check_exit
+
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0)
+    row = pd.Series({"close": 99.0})
+    trade = check_exit(position, row, _ind(low_10=95.0), pd.Timestamp("2026-01-05"))
+    assert trade is None
+
+
+def test_check_exit_breach_2n_only():
+    from turtle.backtest import check_exit
+
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0)
+    row = pd.Series({"close": 95.0})  # <= stop_price(96), > low_10(90)
+    trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
+    assert trade is not None
+    assert trade.exit_reason == "2N"
+    assert trade.exit_price == 95.0
+    assert trade.exit_date == "2026-01-05"
+
+
+def test_check_exit_breach_10d_only():
+    from turtle.backtest import check_exit
+
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=80.0)
+    row = pd.Series({"close": 85.0})  # > stop_price(80), <= low_10(90)
+    trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
+    assert trade is not None
+    assert trade.exit_reason == "10D"
+
+
+def test_check_exit_breach_both():
+    from turtle.backtest import check_exit
+
+    position = OpenPosition(units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0)
+    row = pd.Series({"close": 80.0})  # <= both
+    trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
+    assert trade is not None
+    assert trade.exit_reason == "2N+10D"
