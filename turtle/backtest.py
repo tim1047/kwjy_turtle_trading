@@ -119,14 +119,17 @@ def check_exit(
     close = float(row["close"])
     breach_2n = close <= position.stop_price
     breach_10d = close <= ind.low_10
-    if not (breach_2n or breach_10d):
+    breach_chandelier = close <= position.chandelier_stop
+    reasons = []
+    if breach_2n:
+        reasons.append("2N")
+    if breach_10d:
+        reasons.append("10D")
+    if breach_chandelier:
+        reasons.append("CHANDELIER")
+    if not reasons:
         return None
-    if breach_2n and breach_10d:
-        reason = "2N+10D"
-    elif breach_2n:
-        reason = "2N"
-    else:
-        reason = "10D"
+    reason = "+".join(reasons)
     return close_position(position, day, close, reason)
 
 
@@ -160,6 +163,7 @@ def run_backtest(
         ind = compute_indicators(df.iloc[: i + 1])
 
         if position is not None:
+            position.chandelier_stop = max(position.chandelier_stop, ind.high_22 - 3 * ind.atr_20)
             trade = check_exit(position, row, ind, day)
             if trade is not None:
                 trades.append(trade)

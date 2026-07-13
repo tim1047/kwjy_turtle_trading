@@ -212,6 +212,32 @@ def test_check_exit_breach_both():
     assert trade.exit_reason == "2N+10D"
 
 
+def test_check_exit_breach_chandelier_only():
+    from turtle.backtest import check_exit
+
+    position = OpenPosition(
+        units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=50.0,
+        chandelier_stop=90.0,
+    )
+    row = pd.Series({"close": 85.0})  # <= chandelier(90), > stop_price(50), > low_10
+    trade = check_exit(position, row, _ind(low_10=80.0), pd.Timestamp("2026-01-05"))
+    assert trade is not None
+    assert trade.exit_reason == "CHANDELIER"
+
+
+def test_check_exit_breach_all_three():
+    from turtle.backtest import check_exit
+
+    position = OpenPosition(
+        units=[Unit(100.0, 10.0, "2026-01-01")], n=2.0, stop_price=96.0,
+        chandelier_stop=97.0,
+    )
+    row = pd.Series({"close": 80.0})  # <= all three
+    trade = check_exit(position, row, _ind(low_10=90.0), pd.Timestamp("2026-01-05"))
+    assert trade is not None
+    assert trade.exit_reason == "2N+10D+CHANDELIER"
+
+
 from turtle.backtest import run_backtest
 from turtle.indicators import compute_indicators
 
@@ -269,7 +295,9 @@ def test_run_backtest_entry_pyramid_and_exit():
     assert trade.entry_date == df.index[breakout_idx].strftime("%Y-%m-%d")
     assert trade.exit_date == df.index[breakout_idx + 2].strftime("%Y-%m-%d")
     assert trade.units == 2
-    assert trade.exit_reason == "2N+10D"
+    # 이 시나리오에서는 급락(80.0) 시점에 실제 chandelier_stop도 함께 breach된다
+    # (day+1 상승으로 ratchet된 chandelier_stop ~95.19 > close 80.0).
+    assert trade.exit_reason == "2N+10D+CHANDELIER"
     assert trade.exit_price == 80.0
 
     expected_avg = (entry_ind.high_55 + expected_pyramid_1) / 2
@@ -289,3 +317,26 @@ def test_run_backtest_raises_when_warmup_insufficient():
     )
     with pytest.raises(ValueError, match="워밍업"):
         run_backtest(df, df.index[40].strftime("%Y%m%d"), df.index[45].strftime("%Y%m%d"), _acct())
+
+
+def test_run_backtest_chandelier_stop_ratchets_up_and_does_not_fall():
+    n = 230
+    breakout_idx = 205
+    # breakout 직후 며칠간 상승(고점 갱신) 후 하락하지만 chandelier 아래까지는 안 감,
+    # 대신 10D 저가를 깨서 청산 -> 청산 시점에 chandelier_stop이 초기값보다 높아야 함
+    df = _flat_then_breakout_df(
+        breakout_idx, n,
+        post_breakout_closes={1: 110.0, 2: 108.0, 3: 106.0, 4: 104.0, 5: 90.0},
+    )
+    start = df.index[200].strftime("%Y%m%d")
+    end = df.index[breakout_idx + 6].strftime("%Y%m%d")
+
+    trades = run_backtest(df, start, end, _acct(), min_unit=1.0, approaching_pct=0.98)
+
+    assert len(trades) == 1
+    entry_ind = compute_indicators(df.iloc[: breakout_idx + 1])
+    initial_chandelier = entry_ind.high_22 - 3 * entry_ind.atr_20
+    # 상승 구간에서 high_22가 갱신됐으므로 청산 시점 chandelier_stop은 진입 시점보다 높아야 함
+    peak_ind = compute_indicators(df.iloc[: breakout_idx + 4 + 1])  # offset=4(종가104) 시점까지
+    peak_chandelier = peak_ind.high_22 - 3 * peak_ind.atr_20
+    assert peak_chandelier > initial_chandelier
