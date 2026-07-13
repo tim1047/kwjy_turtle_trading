@@ -2,6 +2,11 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from turtle.config import AccountConfig
+from turtle.indicators import IndicatorResult
+from turtle.signals import BREAKOUT_CLOSE, BREAKOUT_TODAY, classify
+from turtle.trading_params import compute_trading_params
+
 
 @dataclass(frozen=True)
 class Unit:
@@ -48,3 +53,29 @@ def close_position(
         pnl_pct=pnl_pct,
         exit_reason=reason,
     )
+
+
+def enter_position(
+    row: pd.Series,
+    ind: IndicatorResult,
+    day: pd.Timestamp,
+    account: AccountConfig,
+    min_unit: float,
+    approaching_pct: float,
+) -> OpenPosition | None:
+    status = classify(
+        today_high=float(row["high"]),
+        today_low=float(row["low"]),
+        today_close=float(row["close"]),
+        high_55=ind.high_55,
+        low_20=ind.low_20,
+        approaching_pct=approaching_pct,
+        sma_200=ind.sma_200,
+    )
+    if status not in (BREAKOUT_TODAY, BREAKOUT_CLOSE):
+        return None
+    params = compute_trading_params(ind.high_55, ind.atr_20, account, min_unit)
+    if not params.tradable:
+        return None
+    unit = Unit(entry_price=ind.high_55, size=params.unit_size, entry_date=day.strftime("%Y-%m-%d"))
+    return OpenPosition(units=[unit], n=ind.atr_20, stop_price=params.stop_loss_price)
