@@ -40,3 +40,22 @@ def get_investor_net_buy_days(
     foreign_days = int((recent["외국인합계"] > 0).sum())
     inst_days = int((recent["기관합계"] > 0).sum())
     return foreign_days, inst_days
+
+
+def get_investor_net_buy_value(
+    ticker: str, start: str, end: str, throttle: float = 0.2
+) -> float:
+    """start~end 구간 외국인+기관 누적 순매수 거래대금(원)을 합산한다 (I/O).
+
+    개인·기타법인은 제외한 단일 합산값. 빈 응답은 KRX 인증 실패/미확정 신호이므로
+    0원과 구분되도록 예외를 던진다 (호출측이 N/A로 처리한다).
+    """
+
+    def _call():
+        return stock.get_market_trading_value_by_date(start, end, ticker, on="순매수")
+
+    raw = with_retry(_call, retries=3, base_delay=1.0)
+    time.sleep(throttle)
+    if raw is None or raw.empty:
+        raise RuntimeError(f"{ticker} 투자자별 순매수 데이터 없음 ({start}~{end})")
+    return float(raw["외국인합계"].sum() + raw["기관합계"].sum())

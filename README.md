@@ -65,6 +65,25 @@ python -m pytest -v
 python -m pytest tests/test_indicators.py -v
 ```
 
+## 스윙 눌림목 스크리너
+
+터틀과 별개로, 장대양봉 이후 거래량이 마른 눌림목 구간에 들어온 종목을 추출합니다.
+상세 스펙: [docs/swing_stratgy.md](docs/swing_stratgy.md)
+
+```bash
+# 직전 거래일 기준 스크리닝 + 텔레그램 발송
+python -m swing.main
+
+# 특정 날짜, 전송 없이 stdout만
+python -m swing.main --date 2026-08-11 --no-send
+```
+
+**요구사항:** `.env`에 `KRX_ID`/`KRX_PW`(data.krx.co.kr 계정)가 있어야 합니다.
+시가총액 단면 조회가 KRX 인증을 요구하며, 미설정 시 배치가 즉시 중단됩니다.
+
+파라미터는 `config.yaml`의 `swing:` 섹션에서 조정합니다. 기본값은 **미검증
+시작점**이며 백테스트 전에는 실매매 근거로 쓰지 마십시오.
+
 ## Cron 설정 (자동 실행)
 
 ### VPS 환경 (장마감 후 실행)
@@ -77,6 +96,9 @@ crontab -e
 
 # 다음 라인 추가 (매일 월~금 16:10 KST)
 10 16 * * 1-5 cd /path/to/turtle-trading && /path/to/.venv/bin/python -m turtle.main >> run.log 2>&1
+
+# 스윙 스크리너 (매일 월~금 18:10 KST — 투자자별 순매수 확정 후)
+10 18 * * 1-5 cd /path/to/turtle-trading && /path/to/.venv/bin/python -m swing.main >> swing.log 2>&1
 ```
 
 ### 로그 모니터링
