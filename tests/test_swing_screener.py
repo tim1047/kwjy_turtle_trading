@@ -74,7 +74,10 @@ def test_no_box_breakout_rejected():
 
 
 def test_wide_base_range_rejected():
-    wide = [QUIET_BASE] * 29 + [(10_000, 15_000, 9_900, 10_000, 100_000)]
+    # 고가는 QUIET_BASE와 동일(박스 상단 돌파는 유지) + 저가만 8,000으로 내려
+    # 가격수축률만 위반하도록 격리 (원래 고가 15,000짜리는 박스돌파 조건도 함께
+    # 막아버려 price_contraction 경로가 검증되지 않았다)
+    wide = [QUIET_BASE] * 29 + [(10_000, 10_100, 8_000, 10_000, 100_000)]
     assert screen(_scenario(base=wide), _p()) is None
 
 
@@ -113,8 +116,13 @@ def test_high_pullback_volume_rejected():
 
 
 def test_heavy_bearish_bar_in_pullback_rejected():
-    down = (10_750, 10_760, 10_705, 10_710, 250_000)  # 음봉 + 20일 평균의 2.5배
-    assert screen(_scenario(pullback=(HOLD, down, HOLD)), _p()) is None
+    # 음봉 거래량은 dist_vol 기준(20일 평균의 2.0배 = 200,000)만 겨우 넘기고,
+    # HOLD 4봉을 더 섞어 평균 거래량은 pullback_vol_ratio 기준(90,000) 아래로
+    # 유지 -> mean=88,000으로 거래량비율 조건은 통과시키고 대량음봉 조건만 걸림
+    # (원래 3봉짜리는 평균이 123,333로 거래량비율 조건에서 먼저 걸려 dist_vol
+    # 경로가 검증되지 않았다)
+    down = (10_750, 10_760, 10_705, 10_710, 200_000)  # 음봉 + 20일 평균의 2.0배
+    assert screen(_scenario(pullback=(HOLD, HOLD, down, HOLD, HOLD)), _p()) is None
 
 
 def test_pole_older_than_pullback_max_rejected():
