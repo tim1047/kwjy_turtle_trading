@@ -30,3 +30,22 @@ assets:
   crypto: true
 
 telegram_chat_id: "-5212469241"
+
+swing:
+  base_window: 30
+  base_long_window: 60
+  price_contraction: 0.20
+  base_vol_ratio: 0.8
+  body_min: 0.06
+  close_pos: 0.7
+  vol_spike: 2.5
+  spike_ref_window: 20
+  pullback_min: 1
+  pullback_max: 10
+  retrace_max: 0.5
+  pullback_vol_ratio: 0.3
+  dist_vol: 2.0
+  mcap_percentile_cut: 50
+  liquidity_min_value: 1000000000
+  min_price: 1000
+  notify_empty: true
