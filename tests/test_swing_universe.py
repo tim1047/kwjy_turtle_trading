@@ -1,6 +1,8 @@
 import pandas as pd
 import pytest
 
+import swing.universe
+from swing.params import SwingParams
 from swing.universe import is_excluded_name, top_by_market_cap
 
 
@@ -39,3 +41,24 @@ def test_top_by_market_cap_rounds_up_on_odd_count():
 def test_top_by_market_cap_empty_raises():
     with pytest.raises(ValueError):
         top_by_market_cap(_cap_df([]), 50)
+
+
+def test_build_swing_universe_skips_ticker_with_failed_name_lookup(monkeypatch):
+    """이름 조회 실패 티커는 배제 규칙을 적용할 수 없으므로 유니버스에서 제외되어야
+    하고(티커 숫자열을 이름으로 대신 쓰지 않는다), 정상 조회된 티커는 남아야 한다."""
+    cap_df = _cap_df([("111111", 200), ("222222", 100)])
+
+    def _fake_name(ticker):
+        if ticker == "222222":
+            raise RuntimeError("이름 조회 실패(테스트)")
+        return "정상종목"
+
+    monkeypatch.setattr(swing.universe, "etf_ticker_set", lambda: set())
+    monkeypatch.setattr(swing.universe, "fetch_market_cap", lambda target, market: cap_df)
+    monkeypatch.setattr(swing.universe.stock, "get_market_ticker_name", _fake_name)
+
+    result = swing.universe.build_swing_universe("20260811", SwingParams(mcap_percentile_cut=0.0))
+
+    tickers = {t for t, _, _ in result}
+    assert "222222" not in tickers
+    assert "111111" in tickers

@@ -50,9 +50,11 @@ def fetch_market_cap(target: str, market: str) -> pd.DataFrame:
     return df
 
 
-def _ticker_name(ticker: str) -> str:
-    """종목명 조회 (I/O). 실패 시 티커를 이름으로 사용한다.
+def _ticker_name(ticker: str) -> str | None:
+    """종목명 조회 (I/O). 실패 시 None을 반환한다.
 
+    이름이 없으면 우선주/스팩/리츠 배제 규칙을 적용할 수 없으므로, 호출부에서
+    해당 티커를 유니버스에서 제외한다(티커 숫자열을 이름으로 대신 쓰지 않는다).
     첫 호출에서 전체 종목 테이블을 받아 캐시하므로 두 번째부터는 네트워크
     호출이 없다 (2026-08-12 실측: 1회차 ~7초, 이후 0초).
     """
@@ -60,7 +62,7 @@ def _ticker_name(ticker: str) -> str:
         return stock.get_market_ticker_name(ticker)
     except Exception as exc:  # noqa: BLE001
         log.warning("종목명 조회 실패 %s: %s", ticker, exc)
-        return ticker
+        return None
 
 
 def build_swing_universe(target: str, p: SwingParams) -> list[tuple[str, str, str]]:
@@ -85,6 +87,8 @@ def build_swing_universe(target: str, p: SwingParams) -> list[tuple[str, str, st
             if float(cap_df.at[ticker, "종가"]) < p.min_price:
                 continue
             name = _ticker_name(ticker)
+            if name is None:
+                continue
             if is_excluded_name(name):
                 continue
             out.append((ticker, name, market))
