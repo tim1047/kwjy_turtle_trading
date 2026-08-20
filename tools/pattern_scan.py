@@ -118,6 +118,7 @@ def main(argv=None) -> int:
     ap.add_argument("--anchor-pct", type=float, default=8.0, help="급등일 기준 상승률(%%)")
     ap.add_argument("--anchor-vol", type=float, default=2.0, help="급등일 기준 거래량 배수")
     ap.add_argument("--pre", type=int, default=5, help="급등일 이전 관찰 거래일 수")
+    ap.add_argument("--warmup", type=int, default=250, help="--start 이전에 더 받아올 달력일 수 (이평선 워밍업). 급등일 탐색은 --start 이후만.")
     ap.add_argument("--csv", help="이벤트 상세를 저장할 CSV 경로")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
@@ -129,14 +130,16 @@ def main(argv=None) -> int:
 
     from turtle.data.krx import KrxFetcher
 
+    fetch_start = (pd.Timestamp(a.start) - pd.Timedelta(days=a.warmup)).strftime("%Y%m%d")
     fetcher = KrxFetcher()
     frames, all_ev = [], []
     for t in a.tickers:
-        df = fetcher.get_ohlcv(t, a.start, a.end)
+        df = fetcher.get_ohlcv(t, fetch_start, a.end)
         if len(df) < 130:
             print(f"[warn] {t}: {len(df)}봉 — 120이평/집계 일부 NaN")
         f = add_features(df)
         anchors = find_anchors(f, a.anchor_pct, a.anchor_vol)
+        anchors = anchors[anchors >= pd.Timestamp(a.start)]
         print(f"{t}: {len(df)}봉, 급등일 {len(anchors)}건 {[str(d.date()) for d in anchors]}")
         if len(anchors):
             all_ev.append(event_rows(f, t, anchors, a.pre))
