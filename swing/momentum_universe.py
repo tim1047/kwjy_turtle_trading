@@ -7,9 +7,18 @@ log = logging.getLogger(__name__)
 
 
 def build_momentum_universe(
-    top_n_kospi: int = 400, top_n_kosdaq: int = 400
+    top_n_kospi: int = 200, top_n_kosdaq: int = 200
 ) -> list[tuple[str, str]]:
     """KOSPI/KOSDAQ 시가총액 상위 종목의 (ticker, market) 목록 (I/O).
+
+    **상위 200을 넘기지 말 것.** 400으로 넓히면 소형 구간이 들어와 거래당 성능이
+    무너진다 (2022-01~2026-08 재측정, 같은 BASE 청산 규칙):
+
+        top200x2  종목 221 / 신호  923 / 평균 +4.30% / CAGR +32.0% / MDD -10.3%
+        top400x2  종목 476 / 신호 1990 / 평균 +2.57% / CAGR +15.9% / MDD -22.2%
+
+    거래대금 상한(§3.1)을 올렸을 때와 같은 열화 패턴이다. 청산 규칙을 어떻게
+    조정해도 이 차이를 메우지 못한다.
 
     docs/momentum_screener_spec.md §8 검증 절차와 동일한 유니버스 정의다 — 우선주·
     스팩 등을 별도로 걸러내지 않는다. §6 실측이 이 정의 그대로 돌린 결과이므로,
