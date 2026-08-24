@@ -7,7 +7,7 @@ log = logging.getLogger(__name__)
 
 
 def build_momentum_universe(
-    top_n_kospi: int = 200, top_n_kosdaq: int = 200
+    top_n_kospi: int = 400, top_n_kosdaq: int = 400
 ) -> list[tuple[str, str]]:
     """KOSPI/KOSDAQ 시가총액 상위 종목의 (ticker, market) 목록 (I/O).
 
