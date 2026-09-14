@@ -140,7 +140,7 @@ def test_build_stock_universe_filters_and_isolates_ticker_failure(monkeypatch):
         index=["AAAAAA", "BBBBBB", "CCCCCC"],
     )
 
-    def fake_top_by_cap(market, top_n):
+    def fake_top_by_cap(target, market, top_n):
         return cap_df if market == "KOSPI" else cap_df.iloc[0:0]
 
     monkeypatch.setattr(krx_stocks, "_top_by_cap", fake_top_by_cap)
@@ -173,7 +173,7 @@ def test_build_stock_universe_excludes_etf_tickers_mixed_into_cap_ranking(monkey
         index=["069500", "AAAAAA"],
     )
 
-    def fake_top_by_cap(market, top_n):
+    def fake_top_by_cap(target, market, top_n):
         return cap_df if market == "KOSPI" else cap_df.iloc[0:0]
 
     monkeypatch.setattr(krx_stocks, "_top_by_cap", fake_top_by_cap)
@@ -194,7 +194,7 @@ def test_build_stock_universe_excludes_etf_tickers_mixed_into_cap_ranking(monkey
 def test_build_stock_universe_isolates_market_level_failure(monkeypatch):
     import turtle.universe.krx_stocks as krx_stocks
 
-    def fake_top_by_cap(market, top_n):
+    def fake_top_by_cap(target, market, top_n):
         if market == "KOSPI":
             raise ConnectionError("naver unreachable")
         return pd.DataFrame({"시가총액": [400_000_000_000_000.0]}, index=["DDDDDD"])

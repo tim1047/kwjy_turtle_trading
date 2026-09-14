@@ -5,8 +5,8 @@ import pandas as pd
 from pykrx import stock
 
 from swing.params import SwingParams
-from turtle.data.base import with_retry
 from turtle.universe.krx_etf import etf_ticker_set
+from turtle.universe.krx_stocks import fetch_market_cap
 
 log = logging.getLogger(__name__)
 
@@ -28,26 +28,6 @@ def top_by_market_cap(cap_df: pd.DataFrame, cut_percentile: float) -> list[str]:
     ordered = cap_df.sort_values("시가총액", ascending=False)
     keep = math.ceil(len(ordered) * (100.0 - cut_percentile) / 100.0)
     return [str(t) for t in ordered.index[:keep]]
-
-
-def fetch_market_cap(target: str, market: str) -> pd.DataFrame:
-    """날짜별 전종목 시가총액 단면 조회 (I/O).
-
-    pykrx의 KRX 계열 함수는 KRX_ID/KRX_PW 미설정·세션 만료 시 예외 없이 빈
-    결과를 반환한다. 그대로 진행하면 "후보 0개"로 위장된 장애가 발송되므로
-    빈 결과는 예외로 승격시켜 배치를 중단한다.
-    """
-
-    def _call():
-        return stock.get_market_cap_by_ticker(target, market=market)
-
-    df = with_retry(_call, retries=3, base_delay=1.0)
-    if df is None or df.empty:
-        raise RuntimeError(
-            f"{market} 시가총액 단면이 비어 있음 "
-            f"(target={target}) — KRX_ID/KRX_PW 미설정 또는 세션 만료 의심"
-        )
-    return df
 
 
 def _ticker_name(ticker: str) -> str | None:

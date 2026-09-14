@@ -7,9 +7,12 @@ log = logging.getLogger(__name__)
 
 
 def build_momentum_universe(
-    top_n_kospi: int = 200, top_n_kosdaq: int = 200
+    target: str, top_n_kospi: int = 200, top_n_kosdaq: int = 200
 ) -> list[tuple[str, str]]:
-    """KOSPI/KOSDAQ 시가총액 상위 종목의 (ticker, market) 목록 (I/O).
+    """target("YYYYMMDD") 거래일 기준 KOSPI/KOSDAQ 시가총액 상위 종목의 (ticker, market) 목록 (I/O).
+
+    target은 반드시 거래일이어야 한다 — 휴장일 KRX 단면은 무의미한 순위를 준다
+    (turtle.universe.krx_stocks 주석 참고).
 
     **상위 200을 넘기지 말 것.** 400으로 넓히면 소형 구간이 들어와 거래당 성능이
     무너진다 (2022-01~2026-08 재측정, 같은 BASE 청산 규칙):
@@ -25,7 +28,7 @@ def build_momentum_universe(
     필터를 추가하면 검증된 성과와 실운영 결과가 달라진다. 유동성·정배열 조건은
     검색기 쪽(swing.momentum_screener)이 이미 걸러낸다.
 
-    ETF는 시총 랭킹에 섞여 나오므로 등록된 ETF 티커 목록과 교차 제외한다.
+    ETF는 시총 랭킹에 섞여 나올 수 있으므로 등록된 ETF 티커 목록과 교차 제외한다.
     """
     try:
         etfs = etf_ticker_set()
@@ -35,7 +38,7 @@ def build_momentum_universe(
 
     out: list[tuple[str, str]] = []
     for market, top_n in (("KOSPI", top_n_kospi), ("KOSDAQ", top_n_kosdaq)):
-        cap_df = _top_by_cap(market, top_n)
+        cap_df = _top_by_cap(target, market, top_n)
         added = 0
         for ticker in cap_df.index:
             if ticker in etfs:

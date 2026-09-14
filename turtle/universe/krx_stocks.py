@@ -1,11 +1,6 @@
 import logging
-import math
-import re
-import time
-from io import StringIO
 
 import pandas as pd
-import requests
 from pykrx import stock
 
 from turtle.config import StockFilterConfig
@@ -19,26 +14,19 @@ _PREFERRED_SUFFIXES = ("우", "우B")
 
 # --- 시가총액 상위 종목 조회 -------------------------------------------------
 #
-# 스파이크 결과 (pykrx 1.2.8, 2026-07-06 실행):
-#   stock.get_market_cap('20260703', market='KOSPI')
-#   -> KeyError: "None of [Index(['종가', '시가총액', ...])] are in the [columns]"
-# 원인 추적: get_market_cap_by_ticker는 내부적으로 원본 KRX 엔드포인트
-# (dbms/MDC/STAT/standard/MDCSTAT01501)를 세션 쿠키 없이 POST하며, turtle/calendar.py
-# (Task 6)에서 이미 확인된 것과 동일하게 "400 LOGOUT" 응답을 받아 빈 DataFrame으로
-# 귀결된다 (raw requests.post로 재현 확인). 같은 근본 원인으로
-# stock.get_market_ticker_list / stock.get_market_cap_by_date 도 전부 빈 결과를 반환해,
-# 이 환경에서는 "시가총액순 종목 목록"을 얻을 pykrx 경로가 전혀 없다.
+# 원래는 네이버 금융 시가총액 순위 페이지(finance.naver.com/sise/sise_market_sum.naver)의
+# HTML 표를 스크래핑했다. 2026-09-14 확인 시 이 주소는 sosok·page와 무관하게
+# stock.naver.com의 JS 렌더링 페이지로 리다이렉트되어 (HTTP 200, <table> 0개)
+# pd.read_html이 "No tables found"로 실패한다. 상태 코드가 200이라 재시도로도
+# 복구되지 않는다.
 #
-# 대안: 네이버 금융의 공개 시가총액 순위 페이지
-# (finance.naver.com/sise/sise_market_sum.naver)는 이미 시가총액 내림차순으로 정렬되어
-# 있고, 종목 코드는 페이지 내 "/item/main.naver?code=XXXXXX" 링크에서 추출할 수 있다.
-# 시가총액 컬럼 단위는 억원이므로 원 단위로 변환한다 (검증: 삼성전자 표시값
-# price * 상장주식수(천주 단위) ≈ 시가총액(억원) * 1e8, 오차 1% 이내).
-# 종목명(및 우선주/스팩 판별)은 여전히 안정적으로 동작하는
-# stock.get_market_ticker_name()을 사용한다.
-_NAVER_CAP_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
-_SOSOK = {"KOSPI": "0", "KOSDAQ": "1"}
-_PAGE_SIZE = 50
+# 대신 KRX 원본 단면(pykrx get_market_cap_by_ticker)을 쓴다. 2026-07-06 스파이크에서는
+# 세션 쿠키 없는 POST가 "400 LOGOUT"으로 빈 결과를 냈지만, 이후 .env의 KRX_ID/KRX_PW로
+# pykrx가 로그인하면서 정상 응답한다 (2026-09-11: KOSPI 943 / KOSDAQ 1822종목, 1위 005930).
+# 시가총액 단위는 원이고, 날짜별 단면이라 유니버스를 target 시점 기준으로 잡을 수 있다.
+#
+# 주의: 휴장일을 target으로 넘기면 예외 없이 무의미한 단면이 온다
+# (2026-08-01 토요일 KOSPI 1위가 095570). 호출측은 반드시 거래일로 확정한 날짜를 넘긴다.
 
 
 def _is_preferred(name: str) -> bool:
@@ -49,48 +37,32 @@ def _is_spac(name: str) -> bool:
     return "스팩" in name
 
 
-def _fetch_cap_page(market: str, page: int) -> pd.DataFrame:
-    """네이버 금융 시가총액 순위 페이지 1장을 조회한다 (ticker, 시가총액(억원))."""
+def fetch_market_cap(target: str, market: str) -> pd.DataFrame:
+    """날짜별 전종목 시가총액 단면 조회 (I/O).
+
+    pykrx의 KRX 계열 함수는 KRX_ID/KRX_PW 미설정·세션 만료 시 예외 없이 빈
+    결과를 반환한다. 그대로 진행하면 "후보 0개"로 위장된 장애가 발송되므로
+    빈 결과는 예외로 승격시켜 배치를 중단한다.
+    """
 
     def _call():
-        resp = requests.get(
-            _NAVER_CAP_URL,
-            params={"sosok": _SOSOK[market], "page": page},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=10,
+        return stock.get_market_cap_by_ticker(target, market=market)
+
+    df = with_retry(_call, retries=3, base_delay=1.0)
+    if df is None or df.empty:
+        raise RuntimeError(
+            f"{market} 시가총액 단면이 비어 있음 "
+            f"(target={target}) — KRX_ID/KRX_PW 미설정 또는 세션 만료 의심"
         )
-        resp.raise_for_status()
-        resp.encoding = "euc-kr"
-        return resp.text
-
-    html = with_retry(_call, retries=3, base_delay=1.0)
-    tables = pd.read_html(StringIO(html))
-    df = tables[1].dropna(subset=["종목명"]).reset_index(drop=True)
-    if df.empty:
-        return df
-    codes = re.findall(r"/item/main\.naver\?code=(\d{6})", html)
-    n = min(len(df), len(codes))
-    df = df.iloc[:n].copy()
-    df["ticker"] = codes[:n]
-    return df[["ticker", "시가총액"]]
+    return df
 
 
-def _top_by_cap(market: str, top_n: int) -> pd.DataFrame:
-    """시가총액 상위 top_n 종목을 반환한다 (index=ticker, 컬럼 '시가총액'=원 단위)."""
-    pages_needed = max(1, math.ceil(top_n / _PAGE_SIZE))
-    frames = []
-    for page in range(1, pages_needed + 1):
-        df = _fetch_cap_page(market, page)
-        if df.empty:
-            break
-        frames.append(df)
-        time.sleep(0.2)
-    if not frames:
-        return pd.DataFrame(columns=["시가총액"])
-    out = pd.concat(frames, ignore_index=True)
-    out["시가총액"] = out["시가총액"].astype(float) * 100_000_000  # 억원 -> 원
-    out = out.set_index("ticker").head(top_n)
-    return out
+def _top_by_cap(target: str, market: str, top_n: int) -> pd.DataFrame:
+    """target 거래일 기준 시가총액 상위 top_n 종목 (index=ticker, 컬럼 '시가총액'=원 단위)."""
+    cap_df = fetch_market_cap(target, market)
+    out = cap_df[["시가총액"]].astype(float).sort_values("시가총액", ascending=False)
+    out.index = out.index.astype(str)
+    return out.head(top_n)
 
 
 def _build_metrics(
@@ -152,7 +124,7 @@ def build_stock_universe(
     plan = [("KOSPI", cfg.kospi_top_n), ("KOSDAQ", cfg.kosdaq_top_n)]
     for market, top_n in plan:
         try:
-            cap_df = _top_by_cap(market, top_n)
+            cap_df = _top_by_cap(target, market, top_n)
         except Exception as exc:  # noqa: BLE001 - 시장 단위 조회 실패도 전체를 막지 않는다
             log.warning("%s 시가총액 조회 실패: %s", market, exc)
             continue

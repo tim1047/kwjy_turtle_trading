@@ -131,3 +131,15 @@ def test_report_sent_when_send_true():
          patch("swing.momentum_pipeline.send_telegram") as send_mock:
         run(None, MomentumScreenerParams(min_bars=1), f, "db", "token", "chat", send=True)
     send_mock.assert_called_once()
+
+
+def test_universe_built_for_resolved_target_date():
+    f = _Fetcher({"000001": _df()})
+    with patch("swing.momentum_pipeline._resolve_target", return_value=date(2026, 8, 19)), \
+         patch("swing.momentum_pipeline.build_momentum_universe", return_value=[("000001", "KOSPI")]) as uni_mock, \
+         patch("swing.momentum_pipeline.market_momentum", return_value=1.0), \
+         patch("swing.momentum_pipeline.has_fresh_signal", return_value=True), \
+         patch("swing.momentum_pipeline._ticker_name", return_value="테스트종목"), \
+         patch("swing.momentum_pipeline.get_open_positions", return_value=[]):
+        run(None, MomentumScreenerParams(min_bars=1), f, "db", "token", "chat", send=False)
+    uni_mock.assert_called_once_with("20260819")

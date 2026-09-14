@@ -84,6 +84,33 @@ python -m swing.main --date 2026-08-11 --no-send
 파라미터는 `config.yaml`의 `swing:` 섹션에서 조정합니다. 기본값은 **미검증
 시작점**이며 백테스트 전에는 실매매 근거로 쓰지 마십시오.
 
+## 모멘텀 스윙 검색기
+
+급등 이력이 쌓인 정배열 종목의 감시목록 신규 편입을 추출합니다.
+상세 스펙: [docs/momentum_screener_spec.md](docs/momentum_screener_spec.md)
+
+```bash
+# 직전 거래일 기준 스크리닝 + 텔레그램 발송
+python -m swing.momentum_main
+
+# 특정 날짜, 전송 없이 stdout만
+python -m swing.momentum_main --date 2026-07-11 --no-send
+
+# 기간 스캔 — 구간 내 모든 거래일을 하루씩 훑는다
+python -m swing.momentum_main --start 2026-07-01 --end 2026-07-11
+```
+
+기간 스캔은 조사용 모드로, 일일 실행과 다음이 다릅니다:
+
+- **청산 알림을 내지 않습니다.** `momentum_position`의 보유 포지션은 현재 시점
+  상태라 과거 날짜에 대입할 수 없습니다.
+- **텔레그램으로 보내지 않습니다.** 거래일 수만큼 메시지가 나가기 때문입니다.
+유니버스는 날짜마다 그 거래일의 KRX 시총 단면으로 잡으므로, 같은 날짜면 단일
+날짜 실행과 결과가 같습니다. 가격 조회는 구간 전체를 종목당 한 번만 받아 날짜별로
+잘라 쓰고, 거래일마다 추가되는 것은 시총 단면 조회 2회(KOSPI/KOSDAQ)뿐입니다.
+
+**요구사항:** `.env`에 `KRX_ID`/`KRX_PW`가 있어야 합니다 (시총 단면 조회).
+
 ## Cron 설정 (자동 실행)
 
 ### VPS 환경 (장마감 후 실행)
@@ -119,7 +146,7 @@ tail -20 run.log
 
 - **거래일 조회**: `pykrx.stock.get_previous_business_days()` 대신, 삼성전자(005930)의 OHLCV 데이터 인덱스를 거래일 소스로 사용합니다. (삼성전자는 KRX 최유동 종목으로 거래정지 리스크가 실질적으로 없어 안정적입니다.)
   
-- **시가총액 순위**: `pykrx.stock.get_market_cap()` 대신, Naver Finance의 공개 시가총액 순위 페이지(`finance.naver.com`)를 크롤링합니다.
+- **시가총액 순위**: KRX 로그인(`.env`의 `KRX_ID`/`KRX_PW`) 후 `pykrx.stock.get_market_cap_by_ticker()`로 날짜별 단면을 조회합니다. 이전에 쓰던 Naver Finance 시가총액 순위 페이지(`finance.naver.com/sise/sise_market_sum.naver`)는 2026-09 기준 새 사이트로 리다이렉트되어 더 이상 표를 제공하지 않습니다. **터틀(`turtle.main`)과 모멘텀 검색기 모두 `KRX_ID`/`KRX_PW`가 필수입니다.**
 
 - **ETF 티커 목록**: `pykrx.stock.get_etf_ticker_list()` 대신, Naver Finance의 공개 JSON API(`finance.naver.com/api/sise/etfItemList.naver`)를 사용합니다.
 
